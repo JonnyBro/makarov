@@ -1,0 +1,6 @@
+{
+	"token": "no",
+	"command_prefix": "m.",
+	"custom_status": true,
+	"timeout": 30
+}
