@@ -1,5 +1,5 @@
-
 *.log
 *.pyc
 makarov/configs/1.json
 *.makarov
+bot_start.sh
