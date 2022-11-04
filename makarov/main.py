@@ -149,7 +149,7 @@ async def markov_main(message, automatic):
             await message.reply(markov_msg)
         client.markov_timeout = cfg["timeout"]
 
-async def send_wrapped_text(self, text, target, pre_text=False):
+async def send_wrapped_text(text, target, pre_text=False):
     ''' Wraps the passed text under the 2000 character limit, sends everything and gives it neat formatting.
         text is the text that you need to wrap
         target is the person/channel where you need to send the wrapped text to
@@ -171,11 +171,11 @@ async def send_wrapped_text(self, text, target, pre_text=False):
         await target.send(f"{pre_text}```{wrapped_text[i]}```")
 
 @async_wrap
-def shell_exec(self, command):
+def shell_exec(command):
     p = subprocess.Popen(shlex.split(command), stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()
     return p[0].decode("utf-8", errors="ignore")
 
-async def update_bot(self, message):
+async def update_bot(message):
     try:
         message = message.channel
     except AttributeError:
@@ -225,7 +225,7 @@ async def on_message(message):
                 if not message.author.guild_permissions.administrator:
                     await message.reply("You have no rights, comrade. Ask an admin to do this command.")
                     return
-                update_bot(message)
+                await update_bot(message)
             case ["help", *args]:
                 await message.reply(f"I have several commands:\n" \
                                     f"\t- **{cfg['command_prefix']}allow_private** - Allow logging a channel that's considered private. Will generate text using using only private logs and post it only in private channels that have been whitelisted.\n" \
