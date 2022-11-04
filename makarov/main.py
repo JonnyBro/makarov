@@ -11,6 +11,7 @@ import os.path
 from functools import wraps, partial
 import subprocess
 import shlex
+import os
 
 logging.basicConfig(level=logging.ERROR, filename=f"logs/makarov_{round(time())}.log", filemode="w")
 intents = discord.Intents.default()
@@ -30,17 +31,17 @@ def async_wrap(func):
 def log_error(msg):
     logging.error(msg + ":\n\t" + traceback.format_exc())
 
-def get_channel_type(channel_id):
+def get_channel_type(channel_id, guild_id):
     try:
-        with open(f"internal/whitelisted_channels_channel.makarov") as f:
+        with open(f"internal/{guild_id}/whitelisted_channels_channel.makarov") as f:
             channel = json.load(f)
             if channel_id in channel:
                 return "channel"
-        with open(f"internal/whitelisted_channels_common.makarov") as f:
+        with open(f"internal/{guild_id}/whitelisted_channels_common.makarov") as f:
             common = json.load(f)
             if channel_id in common:
                 return "common"
-        with open(f"internal/whitelisted_channels_private.makarov") as f:
+        with open(f"internal/{guild_id}/whitelisted_channels_private.makarov") as f:
             private = json.load(f)
             if channel_id in private:
                 return "private"
@@ -49,9 +50,9 @@ def get_channel_type(channel_id):
         #not very important error, we can just ignore it 
         return None
 
-def get_whitelist(typee):
+def get_whitelist(typee, guild_id):
     try:
-        with open(f"internal/whitelisted_channels_{typee}.makarov") as f:
+        with open(f"internal/{guild_id}/whitelisted_channels_{typee}.makarov") as f:
             return json.load(f)
     except Exception:
         log_error("Failed to get the whitelist!")
@@ -62,16 +63,12 @@ async def add_to_whitelist(message, typee):
         await message.reply("You have no rights, comrade. Ask an admin to do this command.")
         return
 
-    channel_type = get_channel_type(message.channel.id)
+    channel_type = get_channel_type(message.channel.id, message.guild.id)
     if channel_type and typee != channel_type:
         await message.reply(f"Can't have one channel being two different types at the same time! Remove it from **{channel_type}**!")
         return
 
-    try:
-        with open(f"internal/whitelisted_channels_{typee}.makarov", "r") as f:
-            whitelist = json.load(f)
-    except Exception:
-        whitelist = []
+    whitelist = get_whitelist(typee, message.guild.id)
 
     msg = ""
     if message.channel.id in whitelist:
@@ -82,7 +79,7 @@ async def add_to_whitelist(message, typee):
         msg = F"Added this channel to the **{typee}** whitelist. ({message.channel.id})"
 
     try:
-        with open(f"internal/whitelisted_channels_{typee}.makarov", "w+") as f:
+        with open(f"internal/{message.guild.id}/whitelisted_channels_{typee}.makarov", "w+") as f:
             json.dump(whitelist, f)
     except Exception as e:
         log_error("Failed to write to the whitelist!")
@@ -103,18 +100,18 @@ def markov_log_message(message):
     try:
         if not message.channel:
             return
-        channel_type = get_channel_type(message.channel.id)
+        channel_type = get_channel_type(message.channel.id, message.guild.id)
         if not channel_type:
             return
-        if message.channel.id not in get_whitelist(channel_type):
+        if message.channel.id not in get_whitelist(channel_type, message.guild.id):
             return
         if message.content.startswith(cfg["command_prefix"]):
             return
         if channel_type != "channel":
-            with open(f"internal/{channel_type}_msg_logs.makarov", "a+") as f:
+            with open(f"internal/{message.guild.id}/{channel_type}_msg_logs.makarov", "a+") as f:
                 f.write(message.content+"\n")
         elif channel_type == "channel":
-            with open(f"internal/{message.channel.id}_msg_logs.makarov", "a+") as f:
+            with open(f"internal/{message.guild.id}/{message.channel.id}_msg_logs.makarov", "a+") as f:
                 f.write(message.content+"\n")            
     except Exception:
         log_error("error in markov_log_message")
@@ -132,13 +129,13 @@ def markov_choose(message, automatic):
         return
     if automatic and random() < 0.8:
         return
-    channel_type = get_channel_type(message.channel.id)
-    whitelist = get_whitelist(channel_type)
+    channel_type = get_channel_type(message.channel.id, message.guild.id)
+    whitelist = get_whitelist(channel_type, message.guild.id)
     output = ""
     if (channel_type == "private" or channel_type == "common") and message.channel.id in whitelist:
-        output = markov_generate(message=message, dirr=f"internal/{channel_type}_msg_logs.makarov")
+        output = markov_generate(message=message, dirr=f"internal/{message.guild.id}/{channel_type}_msg_logs.makarov")
     elif channel_type == "channel" and message.channel.id in whitelist:
-        output = markov_generate(message=message, dirr=f"internal/{message.channel.id}_msg_logs.makarov")
+        output = markov_generate(message=message, dirr=f"internal/{message.guild.id}/{message.channel.id}_msg_logs.makarov")
     return output
 
 async def markov_main(message, automatic):
@@ -155,7 +152,7 @@ async def markov_main(message, automatic):
             await message.channel.send(markov_msg)
         else:
             await message.reply(markov_msg)
-        client.markov_timeout = cfg["timeout"]
+        client.markov_timeout[message.guild.id] = cfg["timeout"]
 
 async def send_wrapped_text(text, target, pre_text=False):
     ''' Wraps the passed text under the 2000 character limit, sends everything and gives it neat formatting.
@@ -195,7 +192,8 @@ async def update_bot(message):
 
 @tasks.loop(seconds=1)
 async def timer_decrement():
-    client.markov_timeout = max(client.markov_timeout - 1, 0)
+    for guild in client.markov_timeout:
+        guild = max(guild - 1, 0)
 
 @tasks.loop(seconds=30)
 async def custom_status():
@@ -204,7 +202,7 @@ async def custom_status():
 
 @client.event
 async def on_ready():
-    client.markov_timeout = 0
+    client.markov_timeout = {}
     timer_decrement.start()
     if cfg["custom_status"]:
         custom_status.start()
