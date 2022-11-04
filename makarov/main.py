@@ -9,6 +9,8 @@ import asyncio
 from time import sleep, time
 import os.path
 from functools import wraps, partial
+import subprocess
+import shlex
 
 logging.basicConfig(level=logging.ERROR, filename=f"logs/makarov_{round(time())}.log", filemode="w")
 intents = discord.Intents.default()
@@ -132,15 +134,59 @@ def markov_choose(message, automatic):
     return output
 
 async def markov_main(message, automatic):
+    if client.markov_timeout > 0:
+        return
+
     markov_msg = await markov_choose(message, automatic)
-    if markov_msg:
-        async with message.channel.typing():
-            await asyncio.sleep(1 + random()*2.5)
-            if automatic:
-                await message.channel.send(markov_msg)
-            else:
-                await message.reply(markov_msg)
-            client.markov_timeout = cfg["timeout"]
+    if not markov_msg:
+        return
+
+    async with message.channel.typing():
+        await asyncio.sleep(1 + random()*2.5)
+        if automatic:
+            await message.channel.send(markov_msg)
+        else:
+            await message.reply(markov_msg)
+        client.markov_timeout = cfg["timeout"]
+
+async def send_wrapped_text(self, text, target, pre_text=False):
+    ''' Wraps the passed text under the 2000 character limit, sends everything and gives it neat formatting.
+        text is the text that you need to wrap
+        target is the person/channel where you need to send the wrapped text to
+    '''
+    if pre_text:
+        pre_text = pre_text + "\n"
+    else:
+        pre_text = ""
+
+    try:
+        target = target.channel
+    except AttributeError:
+        pass
+
+    wrapped_text = [(text[i:i + 1992 - len(pre_text)]) for i in range(0, len(text), 1992 - len(pre_text))]
+    for i in range(len(wrapped_text)):
+        if i > 0:
+            pre_text = ""
+        await target.send(f"{pre_text}```{wrapped_text[i]}```")
+
+@async_wrap
+def shell_exec(self, command):
+    p = subprocess.Popen(shlex.split(command), stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()
+    return p[0].decode("utf-8", errors="ignore")
+
+async def update_bot(self, message):
+    try:
+        message = message.channel
+    except AttributeError:
+        pass
+    reset_output_cmd = await shell_exec("git reset --hard")
+    update_output_cmd = await shell_exec("git pull")
+    await send_wrapped_text(reset_output_cmd + "\n" + update_output_cmd, message)
+    await message.send("The bot will now be restarted.")
+    sleep(0.1)
+    await client.close()
+    exit()
 
 @tasks.loop(seconds=1)
 async def timer_decrement():
@@ -178,6 +224,11 @@ async def on_message(message):
                 await add_to_whitelist(message=message, typee="private")
             case ["allow_channel", *args]:
                 await add_to_whitelist(message=message, typee="channel")
+            case ["update", *args]:
+                if not message.author.guild_permissions.administrator:
+                    await message.reply("You have no rights, comrade. Ask an admin to do this command.")
+                    return
+                update_bot(message)
             case ["help", *args]:
                 await message.reply(f"I have several commands:\n" \
                                     f"\t- **{cfg['command_prefix']}allow_private** - Allow logging a channel that's considered private. Will generate text using using only private logs and post it only in private channels that have been whitelisted.\n" \
