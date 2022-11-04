@@ -21,7 +21,8 @@ whitelisted channel and post it only there
 
 **m.gen** - Trigger random text generation manually based on the channel it's executed in.
 
-### How to use:
+
+### How to use:
 
 Download the repository, configure the bot in makarov/configs/example.json, run main.py, allow a few channels to be logged and enjoy.
 
