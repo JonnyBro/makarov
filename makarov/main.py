@@ -144,7 +144,7 @@ def markov_choose(message, automatic):
     return output
 
 async def markov_main(message, automatic):
-    if automatic and client.markov_timeout > 0:
+    if automatic and client.markov_timeout[message.guild.id] > 0:
         return
 
     markov_msg = await markov_choose(message, automatic)
