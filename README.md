@@ -37,3 +37,4 @@ If you wish to do so, you can setup updating from a remote repository:
 ### Credits:
 
 - JamesBrill - [GitHub - JamesBrill/Markov-Chain-Text-Generator: Script that generates random text based on a source text using a Markov chain.](https://github.com/JamesBrill/Markov-Chain-Text-Generator)
+
