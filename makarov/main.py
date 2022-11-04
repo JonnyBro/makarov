@@ -18,6 +18,10 @@ intents = discord.Intents.default()
 intents.message_content = True
 client = discord.Client(intents=intents)
 
+def create_dir(dirr):
+    if not os.path.exists(dirr):
+        os.mkdir(dirr)
+
 def async_wrap(func):
     ''' Wrapper for sync functions to make them async '''
     @wraps(func)
@@ -79,6 +83,7 @@ async def add_to_whitelist(message, typee):
         msg = F"Added this channel to the **{typee}** whitelist. ({message.channel.id})"
 
     try:
+        create_dir(f"internal/{message.guild.id}/")
         with open(f"internal/{message.guild.id}/whitelisted_channels_{typee}.makarov", "w+") as f:
             json.dump(whitelist, f)
     except Exception as e:
