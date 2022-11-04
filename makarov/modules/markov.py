@@ -63,20 +63,17 @@ def generate_text(markov_chain, words):
         state = get_next_state(markov_chain, state)
         if state is None:
             state = get_random_state(markov_chain)
-        urls = re.findall(r'(http|ftp|https):\/\/([\w_-]+(?:(?:\.[\w_-]+)+))([\w.,@?^=%&:\/~+#-]*[\w@?^=%&\/~+#-])', state.split()[-1])
-        mentions = re.findall(r'<@.*>', state.split()[-1])
+        end_word = state.split()[-1]
+        urls = re.findall(r'(http|ftp|https):\/\/([\w_-]+(?:(?:\.[\w_-]+)+))([\w.,@?^=%&:\/~+#-]*[\w@?^=%&\/~+#-])', end_word)
+        mentions = re.findall(r'<@.*>', end_word)
         if mentions:
             continue
         if urls:
             url_count += 1
             if url_count > max_url_count or random.random() > 0.2:
                 continue
-        if "nigger" in state.split()[-1]:
-            slur_count += 1
-            if slur_count > max_slur_count:
-                continue
 
-        text.append(state.split()[-1])
+        text.append(end_word)
     return ' '.join(text)
 
 #if __name__ == '__main__':
