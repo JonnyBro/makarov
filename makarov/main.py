@@ -182,10 +182,7 @@ async def update_bot(self, message):
         pass
     reset_output_cmd = await shell_exec("git reset --hard")
     update_output_cmd = await shell_exec("git pull")
-    await send_wrapped_text(reset_output_cmd + "\n" + update_output_cmd, message)
-    await message.send("The bot will now be restarted.")
-    sleep(0.1)
-    await client.close()
+    await send_wrapped_text(reset_output_cmd + "\n" + update_output_cmd + "\n" + "The bot will now exit.", message)
     exit()
 
 @tasks.loop(seconds=1)

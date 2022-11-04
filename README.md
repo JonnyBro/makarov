@@ -1,8 +1,6 @@
 # Makarov
 
-"Simple" discord bot written on python and discord.py that
- generates gibberish using markov chains and whatever you talk about in 
-your server.
+"Simple" discord bot written on python and discord.py that generates gibberish using markov chains and whatever you talk about in  your server.
 
 ### Commands:
 
@@ -14,10 +12,20 @@ your server.
 
 **m.gen** - Trigger random text generation manually based on the channel it's executed in.
 
+**m.update** - Pull from the repository and restart the bot. (explanation in "How to use")
+
 
 ### How to use:
 
 Download the repository, install dependecies from requirements.txt, configure the bot in makarov/configs/example.json, run main.py, allow a few channels to be logged and enjoy.
+
+If you wish to do so, you can setup updating from a remote repository:
+
+- Either create a repository or pull this one (if you wish to create a private fork you'll need authentication keys to pull it)
+
+- Run the bot in the repo directory, so that it restarts everytime it exits (through daemons/services)
+
+- Use m.update to pull an update from the repo and restart the bot.
 
 ### TO-DO:
 
