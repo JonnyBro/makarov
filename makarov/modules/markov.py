@@ -5,6 +5,8 @@ import sys
 import queue
 import re
 
+continuation_words = ["the","and","a","to","from","or","i"]
+
 def get_next_state(markov_chain, state):
     next_state_items = list(markov_chain[state].items())
     next_states = [x[0] for x in next_state_items]
@@ -64,6 +66,11 @@ def generate_text(markov_chain, words):
         if state is None:
             state = get_random_state(markov_chain)
         end_word = state.split()[-1]
+
+        if end_word.lower() in continuation_words and len(text) == words - 1:
+            words += 1
+            continue
+
         urls = re.findall(r'(http|ftp|https):\/\/([\w_-]+(?:(?:\.[\w_-]+)+))([\w.,@?^=%&:\/~+#-]*[\w@?^=%&\/~+#-])', end_word)
         mentions = re.findall(r'<@.*>', end_word)
         if mentions:

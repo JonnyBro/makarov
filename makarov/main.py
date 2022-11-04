@@ -144,7 +144,7 @@ def markov_choose(message, automatic):
     return output
 
 async def markov_main(message, automatic):
-    if automatic and client.markov_timeout[message.guild.id] > 0:
+    if automatic and client.markov_timeout.get(message.guild.id) > 0:
         return
 
     markov_msg = await markov_choose(message, automatic)
@@ -245,7 +245,6 @@ async def on_message(message):
                                     f"\t- **{cfg['command_prefix']}gen** - Trigger random text generation manually based on the channel it's executed in\n")
             case ["gen", *args]:
                 await markov_main(message, automatic=False)
-
 if __name__ == '__main__':
     with open("configs/1.json") as f:
         cfg = json.load(f)
