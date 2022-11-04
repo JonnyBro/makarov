@@ -58,7 +58,7 @@ def get_whitelist(typee):
         return []
 
 async def add_to_whitelist(message, typee):
-    if not message.author.guild_permissions.administrator:
+    if not is_admin(message.author):
         await message.reply("You have no rights, comrade. Ask an admin to do this command.")
         return
 
@@ -89,6 +89,14 @@ async def add_to_whitelist(message, typee):
         return
 
     await message.reply(msg)
+
+def is_admin(author):
+    try:
+        if author.guild_permissions.administrator:
+            return True
+    except Exception:
+        log_error("error in is_admin")
+    return False
 
 @async_wrap
 def markov_log_message(message):
@@ -134,7 +142,7 @@ def markov_choose(message, automatic):
     return output
 
 async def markov_main(message, automatic):
-    if client.markov_timeout > 0:
+    if automatic and client.markov_timeout > 0:
         return
 
     markov_msg = await markov_choose(message, automatic)
@@ -222,7 +230,7 @@ async def on_message(message):
             case ["allow_channel", *args]:
                 await add_to_whitelist(message=message, typee="channel")
             case ["update", *args]:
-                if not message.author.guild_permissions.administrator:
+                if not is_admin(message.author):
                     await message.reply("You have no rights, comrade. Ask an admin to do this command.")
                     return
                 await update_bot(message)
