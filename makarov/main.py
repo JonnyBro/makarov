@@ -110,7 +110,7 @@ def markov_log_message(message):
             return
         if message.channel.id not in get_whitelist(channel_type, message.guild.id):
             return
-        if message.content.startswith(cfg["command_prefix"]):
+        if message.content.split()[1] in ["allow_common", "allow_private", "allow_channel", "update", "help"]:
             return
         if channel_type != "channel":
             with open(f"internal/{message.guild.id}/{channel_type}_msg_logs.makarov", "a+") as f:
@@ -129,25 +129,25 @@ def markov_generate(message, dirr):
     return markov.generate_text(markov_chain, word_amount)
 
 @async_wrap
-def markov_choose(message, automatic):
+def markov_choose(message, automatic, prepend=""):
     if automatic and message.content.startswith(cfg["command_prefix"]):
         return
     if automatic and random() < 0.8:
         return
     channel_type = get_channel_type(message.channel.id, message.guild.id)
     whitelist = get_whitelist(channel_type, message.guild.id)
-    output = ""
-    if (channel_type == "private" or channel_type == "common") and message.channel.id in whitelist:
-        output = markov_generate(message=message, dirr=f"internal/{message.guild.id}/{channel_type}_msg_logs.makarov")
-    elif channel_type == "channel" and message.channel.id in whitelist:
-        output = markov_generate(message=message, dirr=f"internal/{message.guild.id}/{message.channel.id}_msg_logs.makarov")
-    return output
 
-async def markov_main(message, automatic):
+    if (channel_type == "private" or channel_type == "common") and message.channel.id in whitelist:
+        prepend += markov_generate(message=message, dirr=f"internal/{message.guild.id}/{channel_type}_msg_logs.makarov")
+    elif channel_type == "channel" and message.channel.id in whitelist:
+        prepend += markov_generate(message=message, dirr=f"internal/{message.guild.id}/{message.channel.id}_msg_logs.makarov")
+    return prepend
+
+async def markov_main(message, automatic, prepend=""):
     if automatic and client.markov_timeout.get(message.guild.id) > 0:
         return
 
-    markov_msg = await markov_choose(message, automatic)
+    markov_msg = await markov_choose(message, automatic, prepend)
     if not markov_msg:
         return
 
@@ -243,6 +243,8 @@ async def on_message(message):
                                     f"\t- **{cfg['command_prefix']}allow_common** - Allow logging a public channel. Will generate text using only public logs and post it only in public channels that have been whitelisted.\n" \
                                     f"\t- **{cfg['command_prefix']}allow_channel** - Allow logging a certain channel. Will generate text using only logs from the specific whitelisted channel and post it only there.\n" \
                                     f"Ping the bot to generate text on command.\n")
+            case ["genuser", *args]:
+                await markov_main(message, automatic=False, prepend=f"{args[0]} is: ")
             case _:
                 await markov_main(message, automatic=False)
                 
