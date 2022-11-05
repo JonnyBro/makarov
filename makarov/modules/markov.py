@@ -5,7 +5,7 @@ import sys
 import queue
 import re
 
-continuation_words = ["the","and","a","to","from","or","i", "he's", "hes"]
+continuation_words = ["the","and","a","to","from","or","i", "he's", "hes", "as"]
 
 def get_next_state(markov_chain, state):
     next_state_items = list(markov_chain[state].items())
