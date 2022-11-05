@@ -141,6 +141,8 @@ def markov_choose(message, automatic, prepend=""):
     if automatic and random() < 0.8:
         return
     channel_type = get_channel_type(message.channel.id, message.guild.id)
+    if not channel_type:
+        return
     whitelist = get_whitelist(channel_type, message.guild.id)
 
     if (channel_type == "private" or channel_type == "common") and message.channel.id in whitelist:
