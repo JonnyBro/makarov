@@ -110,7 +110,7 @@ def markov_log_message(message):
             return
         if message.channel.id not in get_whitelist(channel_type, message.guild.id):
             return
-        if message.content.split()[1] in ["allow_common", "allow_private", "allow_channel", "update", "help"]:
+        if message.content.split()[1] in ["allow_common", "allow_private", "allow_channel", "update", "help", "genuser"]:
             return
         if channel_type != "channel":
             with open(f"internal/{message.guild.id}/{channel_type}_msg_logs.makarov", "a+") as f:
