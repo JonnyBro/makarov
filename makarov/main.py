@@ -224,8 +224,8 @@ async def on_message(message):
     except Exception:
         log_error("markov error")
 
-    if message.content.startswith(cfg["command_prefix"]):
-        match message.content.replace(cfg["command_prefix"], "", 1).split():
+    if client.user.mentioned_in(message):
+        match message.content.split()[1:]:
             case ["allow_common", *args]:
                 await add_to_whitelist(message=message, typee="common")
             case ["allow_private", *args]:
@@ -242,9 +242,10 @@ async def on_message(message):
                                     f"\t- **{cfg['command_prefix']}allow_private** - Allow logging a channel that's considered private. Will generate text using using only private logs and post it only in private channels that have been whitelisted.\n" \
                                     f"\t- **{cfg['command_prefix']}allow_common** - Allow logging a public channel. Will generate text using only public logs and post it only in public channels that have been whitelisted.\n" \
                                     f"\t- **{cfg['command_prefix']}allow_channel** - Allow logging a certain channel. Will generate text using only logs from the specific whitelisted channel and post it only there.\n" \
-                                    f"\t- **{cfg['command_prefix']}gen** - Trigger random text generation manually based on the channel it's executed in\n")
-            case ["gen", *args]:
+                                    f"Ping the bot to generate text on command.\n")
+            case _:
                 await markov_main(message, automatic=False)
+                
 if __name__ == '__main__':
     with open("configs/1.json") as f:
         cfg = json.load(f)

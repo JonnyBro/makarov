@@ -4,15 +4,15 @@
 
 ### Commands:
 
-**m.allow_private** - Allow logging a channel that's considered private. Will generate text using using only private logs and post it only in private channels that have been whitelisted.
+To use these you have to ping the bot. The bot will generate text if it's pinged and no command is supplied
 
-**m.allow_common** - Allow logging a public channel. Will generate text using only public logs and post it only in public channels that have been whitelisted.
+**allow_private** - Allow logging a channel that's considered private. Will generate text using using only private logs and post it only in private channels that have been whitelisted.
 
-**m.allow_channel** - Allow logging a certain channel. Will generate text using only logs from the specific whitelisted channel and post it only there
+**allow_common** - Allow logging a public channel. Will generate text using only public logs and post it only in public channels that have been whitelisted.
 
-**m.gen** - Trigger random text generation manually based on the channel it's executed in.
+**allow_channel** - Allow logging a certain channel. Will generate text using only logs from the specific whitelisted channel and post it only there
 
-**m.update** - Pull from the repository and restart the bot. (explanation in "How to use")
+**update** - Pull from the repository and restart the bot. (explanation in "How to use")
 
 
 ### How to use:
