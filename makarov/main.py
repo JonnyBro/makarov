@@ -35,6 +35,12 @@ def async_wrap(func):
 def log_error(msg):
     logging.error(msg + ":\n\t" + traceback.format_exc())
 
+def get_timeout(guild_id):
+    if client.markov_timeout.get(guild_id) != None:
+        return client.markov_timeout.get(guild_id)
+    else:
+        return 0
+
 def get_channel_type(channel_id, guild_id):
     try:
         with open(f"internal/{guild_id}/whitelisted_channels_channel.makarov") as f:
@@ -144,7 +150,7 @@ def markov_choose(message, automatic, prepend=""):
     return prepend
 
 async def markov_main(message, automatic, prepend=""):
-    if automatic and client.markov_timeout.get(message.guild.id) > 0:
+    if automatic and get_timeout(message.guild.id) > 0:
         return
 
     markov_msg = await markov_choose(message, automatic, prepend)
