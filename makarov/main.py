@@ -12,6 +12,7 @@ from functools import wraps, partial
 import subprocess
 import shlex
 import os
+import markovify
 
 logging.basicConfig(level=logging.ERROR, filename=f"logs/makarov_{round(time())}.log", filemode="w")
 intents = discord.Intents.default()
@@ -130,15 +131,22 @@ def markov_log_message(message):
 def markov_generate(message, dirr):
     order = 1
     word_amount = int(random()*10)
-    tokens = markov.tokenise_text_file(dirr)
-    markov_chain = markov.create_markov_chain(tokens, order=order)
-    return markov.generate_text(markov_chain, word_amount)
+    with open(dirr, errors="ignore", encoding="utf-8") as f:
+        text = f.read()
+        text_model = markovify.NewlineText(text)
+        output = text_model.make_short_sentence(word_amount)
+        if not output:
+            return text_model.make_sentence(test_output=False) # fallback if we dont have enough text
+        return output
+    #tokens = markov.tokenise_text_file(dirr)
+    #markov_chain = markov.create_markov_chain(tokens, order=order)
+    #return markov.generate_text(markov_chain, word_amount)
 
 @async_wrap
 def markov_choose(message, automatic, prepend=""):
     if automatic and message.content.startswith(cfg["command_prefix"]):
         return
-    if automatic and random() < 0.8:
+    if automatic and random() < 1-cfg["chance"]/100:
         return
     channel_type = get_channel_type(message.channel.id, message.guild.id)
     if not channel_type:
