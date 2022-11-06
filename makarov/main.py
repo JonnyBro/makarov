@@ -133,8 +133,8 @@ def markov_generate(message, dirr):
     word_amount = int(random()*10)
     with open(dirr, errors="ignore", encoding="utf-8") as f:
         text = f.read()
-        text_model = markovify.NewlineText(text)
-        output = text_model.make_short_sentence(word_amount)
+        text_model = markovify.NewlineText(text, state_size=1)
+        output = text_model.make_short_sentence(word_amount, tries=100)
         if not output:
             return text_model.make_sentence(test_output=False) # fallback if we dont have enough text
         return output
