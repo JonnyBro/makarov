@@ -138,9 +138,6 @@ def markov_generate(message, dirr):
         if not output:
             return text_model.make_sentence(test_output=False) # fallback if we dont have enough text
         return output
-    #tokens = markov.tokenise_text_file(dirr)
-    #markov_chain = markov.create_markov_chain(tokens, order=order)
-    #return markov.generate_text(markov_chain, word_amount)
 
 @async_wrap
 def markov_choose(message, automatic, prepend=""):
