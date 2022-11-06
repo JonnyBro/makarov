@@ -36,11 +36,55 @@ def async_wrap(func):
 def log_error(msg):
     logging.error(msg + ":\n\t" + traceback.format_exc())
 
+async def send_wrapped_text(text, target, pre_text=False):
+    ''' Wraps the passed text under the 2000 character limit, sends everything and gives it neat formatting.
+        text is the text that you need to wrap
+        target is the person/channel where you need to send the wrapped text to
+    '''
+    if pre_text:
+        pre_text = pre_text + "\n"
+    else:
+        pre_text = ""
+
+    try:
+        target = target.channel
+    except AttributeError:
+        pass
+
+    wrapped_text = [(text[i:i + 1992 - len(pre_text)]) for i in range(0, len(text), 1992 - len(pre_text))]
+    for i in range(len(wrapped_text)):
+        if i > 0:
+            pre_text = ""
+        await target.send(f"{pre_text}```{wrapped_text[i]}```")
+
+@async_wrap
+def shell_exec(command):
+    p = subprocess.Popen(shlex.split(command), stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()
+    return p[0].decode("utf-8", errors="ignore")
+
+async def update_bot(message):
+    try:
+        message = message.channel
+    except AttributeError:
+        pass
+    reset_output_cmd = await shell_exec("git reset --hard")
+    update_output_cmd = await shell_exec("git pull")
+    await send_wrapped_text(reset_output_cmd + "\n" + update_output_cmd + "\n" + "The bot will now exit.", message)
+    exit()
+
 def get_timeout(guild_id):
     if client.markov_timeout.get(guild_id) != None:
         return client.markov_timeout.get(guild_id)
     else:
         return 0
+
+def is_admin(author):
+    try:
+        if author.guild_permissions.administrator:
+            return True
+    except Exception:
+        log_error("error in is_admin")
+    return False
 
 def get_channel_type(channel_id, guild_id):
     try:
@@ -100,14 +144,6 @@ async def add_to_whitelist(message, typee):
 
     await message.reply(msg)
 
-def is_admin(author):
-    try:
-        if author.guild_permissions.administrator:
-            return True
-    except Exception:
-        log_error("error in is_admin")
-    return False
-
 @async_wrap
 def markov_log_message(message):
     ''' Logs discord messages to be used later '''
@@ -119,12 +155,6 @@ def markov_log_message(message):
             return
         if message.channel.id not in get_whitelist(channel_type, message.guild.id):
             return
-
-        try:
-            if message.content.split()[1] in ["allow_common", "allow_private", "allow_channel", "update", "help", "genuser", "randomness"]:
-                return
-        except IndexError:
-            pass
 
         output = ""
         
@@ -188,42 +218,6 @@ async def markov_main(message, automatic, prepend=""):
         else:
             await message.reply(markov_msg)
         client.markov_timeout[message.guild.id] = cfg["timeout"]
-
-async def send_wrapped_text(text, target, pre_text=False):
-    ''' Wraps the passed text under the 2000 character limit, sends everything and gives it neat formatting.
-        text is the text that you need to wrap
-        target is the person/channel where you need to send the wrapped text to
-    '''
-    if pre_text:
-        pre_text = pre_text + "\n"
-    else:
-        pre_text = ""
-
-    try:
-        target = target.channel
-    except AttributeError:
-        pass
-
-    wrapped_text = [(text[i:i + 1992 - len(pre_text)]) for i in range(0, len(text), 1992 - len(pre_text))]
-    for i in range(len(wrapped_text)):
-        if i > 0:
-            pre_text = ""
-        await target.send(f"{pre_text}```{wrapped_text[i]}```")
-
-@async_wrap
-def shell_exec(command):
-    p = subprocess.Popen(shlex.split(command), stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()
-    return p[0].decode("utf-8", errors="ignore")
-
-async def update_bot(message):
-    try:
-        message = message.channel
-    except AttributeError:
-        pass
-    reset_output_cmd = await shell_exec("git reset --hard")
-    update_output_cmd = await shell_exec("git pull")
-    await send_wrapped_text(reset_output_cmd + "\n" + update_output_cmd + "\n" + "The bot will now exit.", message)
-    exit()
 
 @tasks.loop(seconds=1)
 async def timer_decrement():
