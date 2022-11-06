@@ -133,7 +133,7 @@ def markov_generate(message, dirr):
     word_amount = int(random()*10)
     with open(dirr, errors="ignore", encoding="utf-8") as f:
         text = f.read()
-        text_model = markovify.NewlineText(text, state_size=1)
+        text_model = markovify.NewlineText(text, state_size=cfg["randomness"])
         output = text_model.make_short_sentence(word_amount, tries=100)
         if not output:
             return text_model.make_sentence(test_output=False) # fallback if we dont have enough text
@@ -248,6 +248,13 @@ async def on_message(message):
                 await add_to_whitelist(message=message, typee="private")
             case ["allow_channel", *args]:
                 await add_to_whitelist(message=message, typee="channel")
+            case ["randomness", *args]:
+                if not is_admin(message.author):
+                    await message.reply("You have no rights, comrade. Ask an admin to do this command.")
+                    return
+                global cfg
+                cfg["randomness"] = int(args[0])
+                await message.reply(f"Set the randomness value to {int(args[0])}.\nIt'll be active only for the current bot session. To change it permanently update the config!")                
             case ["update", *args]:
                 if not is_admin(message.author):
                     await message.reply("You have no rights, comrade. Ask an admin to do this command.")
