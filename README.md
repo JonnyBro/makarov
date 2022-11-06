@@ -12,6 +12,8 @@ To use these you have to ping the bot. The bot will generate text if it's pinged
 
 **allow_channel** - Allow logging a certain channel. Will generate text using only logs from the specific whitelisted channel and post it only there
 
+**teejay hvh linus damianluck tomscott** - Generate text with text gathered from these people/topics.
+
 **update** - Pull from the repository and restart the bot. (explanation in "How to use")
 
 

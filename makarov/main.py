@@ -70,6 +70,7 @@ def get_whitelist(typee, guild_id):
         return []
 
 async def add_to_whitelist(message, typee):
+    ''' Adds a discord channel to whitelist if the executor has admin rights and it isn't already whitelisted under a different category '''
     if not is_admin(message.author):
         await message.reply("You have no rights, comrade. Ask an admin to do this command.")
         return
@@ -109,6 +110,7 @@ def is_admin(author):
 
 @async_wrap
 def markov_log_message(message):
+    ''' Logs discord messages to be used later '''
     try:
         if not message.channel:
             return
@@ -140,7 +142,8 @@ def markov_log_message(message):
     except Exception:
         log_error("error in markov_log_message")
 
-def markov_generate(message, dirr):
+def markov_generate(dirr):
+    ''' Used for text generation based on any file you input. Each separate message separated by a newline'''
     order = 1
     word_amount = int(random()*10)
     with open(dirr, errors="ignore", encoding="utf-8") as f:
@@ -153,6 +156,7 @@ def markov_generate(message, dirr):
 
 @async_wrap
 def markov_choose(message, automatic, prepend=""):
+    ''' Used for server based text generation'''
     if automatic and message.content.startswith(cfg["command_prefix"]):
         return
     if automatic and random() < 1-cfg["chance"]/100:
@@ -163,12 +167,13 @@ def markov_choose(message, automatic, prepend=""):
     whitelist = get_whitelist(channel_type, message.guild.id)
 
     if (channel_type == "private" or channel_type == "common") and message.channel.id in whitelist:
-        prepend += markov_generate(message=message, dirr=f"internal/{message.guild.id}/{channel_type}_msg_logs.makarov")
+        prepend += markov_generate(dirr=f"internal/{message.guild.id}/{channel_type}_msg_logs.makarov")
     elif channel_type == "channel" and message.channel.id in whitelist:
-        prepend += markov_generate(message=message, dirr=f"internal/{message.guild.id}/{message.channel.id}_msg_logs.makarov")
+        prepend += markov_generate(dirr=f"internal/{message.guild.id}/{message.channel.id}_msg_logs.makarov")
     return prepend
 
 async def markov_main(message, automatic, prepend=""):
+    ''' Used for server based text generation'''
     if automatic and get_timeout(message.guild.id) > 0:
         return
 
@@ -177,7 +182,7 @@ async def markov_main(message, automatic, prepend=""):
         return
 
     async with message.channel.typing():
-        await asyncio.sleep(1 + random()*2.5)
+        await asyncio.sleep(1 + random()*1.25)
         if automatic:
             await message.channel.send(markov_msg)
         else:
@@ -228,7 +233,9 @@ async def timer_decrement():
 @tasks.loop(seconds=30)
 async def custom_status():
     with open("configs/status_messages.txt", encoding='UTF-8') as f:
-        await client.change_presence(activity=discord.Game(name=choice(f.read().rstrip().splitlines())))
+        chosen_text = choice(f.read().rstrip().splitlines())
+        chosen_text = chosen_text.replace(".id.", client.user.name)
+        await client.change_presence(activity=discord.Game(name=chosen_text))
 
 @client.event
 async def on_ready():
@@ -236,7 +243,7 @@ async def on_ready():
     timer_decrement.start()
     if cfg["custom_status"]:
         custom_status.start()
-    print(f'We have logged in as {client.user}')
+    logging.info(f'We have logged in as {client.user}')
 
 @client.event
 async def on_message(message):
@@ -270,13 +277,44 @@ async def on_message(message):
                     return
                 await update_bot(message)
             case ["help", *args]:
-                await message.reply(f"I have several commands:\n" \
-                                    f"\t- **{cfg['command_prefix']}allow_private** - Allow logging a channel that's considered private. Will generate text using using only private logs and post it only in private channels that have been whitelisted.\n" \
-                                    f"\t- **{cfg['command_prefix']}allow_common** - Allow logging a public channel. Will generate text using only public logs and post it only in public channels that have been whitelisted.\n" \
-                                    f"\t- **{cfg['command_prefix']}allow_channel** - Allow logging a certain channel. Will generate text using only logs from the specific whitelisted channel and post it only there.\n" \
-                                    f"Ping the bot to generate text on command.\n")
-            case ["genuser", *args]:
-                await markov_main(message, automatic=False, prepend=f"{args[0]} is: ")
+                await message.reply(f"```I have several commands that you can ping me with:\n" \
+                                    f"\t- allow_private - Allow logging a channel that's considered private. Will generate text using using only private logs and post it only in private channels that have been whitelisted.\n" \
+                                    f"\t- allow_common - Allow logging a public channel. Will generate text using only public logs and post it only in public channels that have been whitelisted.\n" \
+                                    f"\t- allow_channel - Allow logging a certain channel. Will generate text using only logs from the specific whitelisted channel and post it only there.\n" \
+                                    f"\t- teejay hvh linus damianluck tomscott - Generate text with text gathered from these people/topics.\n" \
+                                    f"Don't input any command to generate server-based text.```\n")
+            case ["damian", *args]:
+                async with message.channel.typing():
+                    await asyncio.sleep(1 + random()*1.25)
+                    output = markov_generate(dirr="internal/damianluck.txt")
+                    await message.reply(output)
+            case ["hvh", *args]:
+                async with message.channel.typing():
+                    await asyncio.sleep(1 + random()*1.25)
+                    output = markov_generate(dirr="internal/hvh.txt")
+                    output = output.split()
+                    random_shit = ["(◣_◢)", "♕", "🙂", "(◣︵◢)"]
+                    actual_output = []
+                    for word in output:
+                        actual_output.append(word)
+                        if random() > 0.8:
+                            actual_output.append(choice(random_shit))
+                    await message.reply(" ".join(actual_output))
+            case ["tomscott", *args]:
+                async with message.channel.typing():
+                    await asyncio.sleep(1 + random()*1.25)
+                    output = markov_generate(dirr="internal/tomscott.txt")
+                    await message.reply(output)
+            case ["ltt", *args]:
+                async with message.channel.typing():
+                    await asyncio.sleep(1 + random()*1.25)
+                    output = markov_generate(dirr="internal/linus.txt")
+                    await message.reply(output)
+            case ["teejay", *args]:
+                async with message.channel.typing():
+                    await asyncio.sleep(1 + random()*1.25)
+                    output = markov_generate(dirr="internal/teejayx6.txt")
+                    await message.reply(output)
             case _:
                 await markov_main(message, automatic=False)
                 
