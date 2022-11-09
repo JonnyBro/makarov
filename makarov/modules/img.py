@@ -1,6 +1,7 @@
 from PIL import Image
 from PIL import ImageFont
-from PIL import ImageDraw
+from PIL import ImageDraw, ImageFilter, ImageChops
+
 import textwrap
 import os
 
@@ -15,7 +16,7 @@ class Coordinates:
         self.y = y
 
 class Subtitle:
-    def __init__(self, pos, text, font_name, font_size, max_lines=0, top=False, stroke=0, font_color=(255,255,255), stroke_color=(0, 0, 0), offset=Coordinates(0,0)):
+    def __init__(self, pos, text, font_name, font_size, shadow=False, shadow_offset=Coordinates(0,0), shadow_blur=3, max_lines=0, top=False, stroke=0, font_color=(255,255,255), stroke_color=(0, 0, 0), offset=Coordinates(0,0)):
         self.offset = offset
         self.pos = Coordinates(pos.x+self.offset.x, pos.y+self.offset.y)
         self.text = text
@@ -26,6 +27,9 @@ class Subtitle:
         self.stroke_color = stroke_color
         self.top = top
         self.max_lines = max_lines
+        self.shadow = shadow
+        self.shadow_offset = shadow_offset
+        self.shadow_blur = shadow_blur
         self.create_font()
 
     def create_font(self):
@@ -76,7 +80,10 @@ class Subtitle:
                                             font_name=self.font_name, 
                                             font_size=self.font_size, 
                                             stroke=self.stroke,
-                                            offset=offset))
+                                            offset=offset,
+                                            shadow=self.shadow,
+                                            shadow_offset=self.shadow_offset,
+                                            shadow_blur=self.shadow_blur))
                     offset.y += self.char_size.y + 5
                 break
             return sub_obj
@@ -100,6 +107,12 @@ class Subtitle:
         return offset
 
     def draw(self, bg):
+        if self.shadow:
+            shadow_image = Image.new('RGBA', bg.size)
+            shadow_canvas = ImageDraw.Draw(shadow_image)
+            shadow_canvas.text((self.pos.x+self.shadow_offset.x, self.pos.y+self.shadow_offset.y), self.text, font=self.font_obj, fill=(0,0,0), stroke=1, stroke_fill=self.stroke_color)
+            shadow_image = shadow_image.filter(ImageFilter.GaussianBlur(self.shadow_blur))
+            bg.paste(shadow_image,shadow_image)
         draw = ImageDraw.Draw(bg)
         draw.text((self.pos.x, self.pos.y), self.text, font=self.font_obj, fill=self.font_color, stroke_width=self.stroke, stroke_fill=self.stroke_color)
 
@@ -133,19 +146,23 @@ class MakarovImage:
         
     def save(self):
         pathname, extension = os.path.splitext(self.image_path)
-        path = "m_" + pathname + ".png"
-        self.bg.save(path)
+        # Saving the image in anything else but jpg may cause transparency issues. BE AWARE!!
+        path = "m_" + pathname + ".jpg"
+        self.bg = self.bg.convert("RGB")
+        self.bg.save(path, quality=100)
         return path
 
 if __name__ == "__main__":
     img = MakarovImage("sample.jpg")
-    img.add_vertical_gradient()
-
     subtitle = Subtitle(pos=Coordinates(x=10,y=10),
                         text="lol",
                         font_name="../internal/lobster.ttf",
                         font_size=32,
+                        shadow=True,
+                        shadow_offset=Coordinates(1,1),
+                        shadow_blur=2,
                         max_lines=2,
                         top=False)
+    img.add_vertical_gradient(8)
     img.add_meme_subtitle([subtitle])
-    img.save()
+    path = img.save()

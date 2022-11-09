@@ -304,7 +304,10 @@ class ImageGen:
                                     font_name="internal/lobster.ttf",
                                     font_size=32,
                                     max_lines=2,
-                                    top=False)
+                                    top=False,                        
+                                    shadow=True,
+                                    shadow_offset=Coordinates(1,1),
+                                    shadow_blur=2)
                 img.add_meme_subtitle([subtitle])
         path = img.save()
         await message.reply(file=discord.File(path))
