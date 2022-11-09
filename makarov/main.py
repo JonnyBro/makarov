@@ -22,10 +22,6 @@ intents = discord.Intents.default()
 intents.message_content = True
 client = discord.Client(intents=intents)
 
-def create_dir(dirr):
-    if not os.path.exists(dirr):
-        os.mkdir(dirr)
-
 def async_wrap(func):
     ''' Wrapper for sync functions to make them async '''
     @wraps(func)
@@ -36,214 +32,237 @@ def async_wrap(func):
         return await loop.run_in_executor(executor, pfunc)
     return run
 
-def log_error(msg):
-    logging.error(msg + ":\n\t" + traceback.format_exc())
+class Util:
+    @staticmethod
+    def create_dir(dirr):
+        if not os.path.exists(dirr):
+            os.mkdir(dirr)
 
-async def send_wrapped_text(text, target, pre_text=False):
-    ''' Wraps the passed text under the 2000 character limit, sends everything and gives it neat formatting.
-        text is the text that you need to wrap
-        target is the person/channel where you need to send the wrapped text to
-    '''
-    if pre_text:
-        pre_text = pre_text + "\n"
-    else:
-        pre_text = ""
+    @staticmethod
+    def log_error(msg):
+        logging.error(msg + ":\n\t" + traceback.format_exc())
 
-    try:
-        target = target.channel
-    except AttributeError:
-        pass
-
-    wrapped_text = [(text[i:i + 1992 - len(pre_text)]) for i in range(0, len(text), 1992 - len(pre_text))]
-    for i in range(len(wrapped_text)):
-        if i > 0:
+    @staticmethod
+    async def send_wrapped_text(text, target, pre_text=False):
+        ''' Wraps the passed text under the 2000 character limit, sends everything and gives it neat formatting.
+            text is the text that you need to wrap
+            target is the person/channel where you need to send the wrapped text to
+        '''
+        if pre_text:
+            pre_text = pre_text + "\n"
+        else:
             pre_text = ""
-        await target.send(f"{pre_text}```{wrapped_text[i]}```")
 
-@async_wrap
-def shell_exec(command):
-    p = subprocess.Popen(shlex.split(command), stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()
-    return p[0].decode("utf-8", errors="ignore")
+        try:
+            target = target.channel
+        except AttributeError:
+            pass
 
-async def update_bot(message):
-    try:
-        message = message.channel
-    except AttributeError:
-        pass
-    reset_output_cmd = await shell_exec("git reset --hard")
-    update_output_cmd = await shell_exec("git pull")
-    await send_wrapped_text(reset_output_cmd + "\n" + update_output_cmd + "\n" + "The bot will now exit.", message)
-    exit()
+        wrapped_text = [(text[i:i + 1992 - len(pre_text)]) for i in range(0, len(text), 1992 - len(pre_text))]
+        for i in range(len(wrapped_text)):
+            if i > 0:
+                pre_text = ""
+            await target.send(f"{pre_text}```{wrapped_text[i]}```")
 
-def get_timeout(guild_id):
-    if client.markov_timeout.get(guild_id) != None:
-        return client.markov_timeout.get(guild_id)
-    else:
-        return 0
+    @staticmethod
+    @async_wrap
+    def shell_exec(command):
+        p = subprocess.Popen(shlex.split(command), stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()
+        return p[0].decode("utf-8", errors="ignore")
 
-def is_admin(author):
-    try:
-        if author.guild_permissions.administrator:
-            return True
-    except Exception:
-        log_error("error in is_admin")
-    return False
+    @staticmethod
+    async def update_bot(message):
+        try:
+            message = message.channel
+        except AttributeError:
+            pass
+        reset_output_cmd = await Util.shell_exec("git reset --hard")
+        update_output_cmd = await Util.shell_exec("git pull")
+        await Util.send_wrapped_text(reset_output_cmd + "\n" + update_output_cmd + "\n" + "The bot will now exit.", message)
+        exit()
 
-def get_channel_type(channel_id, guild_id):
-    try:
-        with open(f"internal/{guild_id}/whitelisted_channels_channel.makarov") as f:
-            channel = json.load(f)
-            if channel_id in channel:
-                return "channel"
-        with open(f"internal/{guild_id}/whitelisted_channels_common.makarov") as f:
-            common = json.load(f)
-            if channel_id in common:
-                return "common"
-        with open(f"internal/{guild_id}/whitelisted_channels_private.makarov") as f:
-            private = json.load(f)
-            if channel_id in private:
-                return "private"
-    except Exception:
-        #log_error("Failed to get the channel type!")
-        #not very important error, we can just ignore it 
-        return None
+class GuildUtil:
+    @staticmethod
+    def get_timeout(guild_id):
+        if client.markov_timeout.get(guild_id) != None:
+            return client.markov_timeout.get(guild_id)
+        else:
+            return 0
 
-def get_whitelist(typee, guild_id):
-    try:
-        with open(f"internal/{guild_id}/whitelisted_channels_{typee}.makarov") as f:
-            return json.load(f)
-    except Exception:
-        log_error("Failed to get the whitelist!")
-        return []
+    @staticmethod
+    def is_admin(author):
+        try:
+            if author.guild_permissions.administrator:
+                return True
+        except Exception:
+            Util.log_error("error in GuildUtil.is_admin")
+        return False
 
-async def add_to_whitelist(message, typee):
-    ''' Adds a discord channel to whitelist if the executor has admin rights and it isn't already whitelisted under a different category '''
-    if not is_admin(message.author):
-        await message.reply("You have no rights, comrade. Ask an admin to do this command.")
-        return
+    @staticmethod
+    def get_channel_type(channel_id, guild_id):
+        try:
+            with open(f"internal/{guild_id}/whitelisted_channels_channel.makarov") as f:
+                channel = json.load(f)
+                if channel_id in channel:
+                    return "channel"
+            with open(f"internal/{guild_id}/whitelisted_channels_common.makarov") as f:
+                common = json.load(f)
+                if channel_id in common:
+                    return "common"
+            with open(f"internal/{guild_id}/whitelisted_channels_private.makarov") as f:
+                private = json.load(f)
+                if channel_id in private:
+                    return "private"
+        except Exception:
+            #Util.log_error("Failed to get the channel type!")
+            #not very important error, we can just ignore it 
+            return None
 
-    channel_type = get_channel_type(message.channel.id, message.guild.id)
-    if channel_type and typee != channel_type:
-        await message.reply(f"Can't have one channel being two different types at the same time! Remove it from **{channel_type}**!")
-        return
+class Whitelist:
+    @staticmethod
+    def get(typee, guild_id):
+        try:
+            with open(f"internal/{guild_id}/whitelisted_channels_{typee}.makarov") as f:
+                return json.load(f)
+        except Exception:
+            Util.log_error("Failed to get the whitelist!")
+            return []
 
-    whitelist = get_whitelist(typee, message.guild.id)
-
-    msg = ""
-    if message.channel.id in whitelist:
-        whitelist.remove(message.channel.id)
-        msg = F"Removed this channel from the **{typee}** whitelist. ({message.channel.id})"
-    else:
-        whitelist.append(message.channel.id)
-        msg = F"Added this channel to the **{typee}** whitelist. ({message.channel.id})"
-
-    try:
-        create_dir(f"internal/{message.guild.id}/")
-        with open(f"internal/{message.guild.id}/whitelisted_channels_{typee}.makarov", "w+") as f:
-            json.dump(whitelist, f)
-    except Exception as e:
-        log_error("Failed to write to the whitelist!")
-        return
-
-    await message.reply(msg)
-
-@async_wrap
-def markov_log_message(message):
-    ''' Logs discord messages to be used later '''
-    try:
-        if clinet.user.mentioned_in(message):
+    @staticmethod
+    async def toggle(message, typee):
+        ''' Adds a discord channel to whitelist if the executor has admin rights and it isn't already whitelisted under a different category '''
+        if not GuildUtil.is_admin(message.author):
+            await message.reply("You have no rights, comrade. Ask an admin to do this command.")
             return
-        if not message.channel:
+
+        channel_type = GuildUtil.get_channel_type(message.channel.id, message.guild.id)
+        if channel_type and typee != channel_type:
+            await message.reply(f"Can't have one channel being two different types at the same time! Remove it from **{channel_type}**!")
             return
-        channel_type = get_channel_type(message.channel.id, message.guild.id)
+
+        whitelist = self.get(typee, message.guild.id)
+
+        msg = ""
+        if message.channel.id in whitelist:
+            whitelist.remove(message.channel.id)
+            msg = F"Removed this channel from the **{typee}** whitelist. ({message.channel.id})"
+        else:
+            whitelist.append(message.channel.id)
+            msg = F"Added this channel to the **{typee}** whitelist. ({message.channel.id})"
+
+        try:
+            Util.create_dir(f"internal/{message.guild.id}/")
+            with open(f"internal/{message.guild.id}/whitelisted_channels_{typee}.makarov", "w+") as f:
+                json.dump(whitelist, f)
+        except Exception as e:
+            Util.log_error("Failed to write to the whitelist!")
+            return
+
+        await message.reply(msg)
+
+class Makarov:
+    @staticmethod
+    @async_wrap
+    def log_message(message):
+        ''' Logs discord messages to be used later '''
+        try:
+            if client.user.mentioned_in(message):
+                return
+            if not message.channel:
+                return
+            channel_type = GuildUtil.get_channel_type(message.channel.id, message.guild.id)
+            if not channel_type:
+                return
+            if message.channel.id not in Whitelist.get(channel_type, message.guild.id):
+                return
+
+            output = ""
+            
+            if message.content:
+                output += message.content + "\n"
+            for attachment in message.attachments:
+                output += attachment.url + "\n"
+
+            if channel_type != "channel":
+                with open(f"internal/{message.guild.id}/{channel_type}_msg_logs.makarov", "a+") as f:
+                    f.write(output)
+            elif channel_type == "channel":
+                with open(f"internal/{message.guild.id}/{message.channel.id}_msg_logs.makarov", "a+") as f:
+                    f.write(output)            
+        except Exception:
+            Util.log_error("error in Makarov.log_message")
+
+    @staticmethod
+    def generate(dirr):
+        ''' Used for text generation based on any file you input. Each separate message separated by a newline'''
+        order = 1
+        word_amount = int(random()*10)
+        with open(dirr, errors="ignore", encoding="utf-8") as f:
+            text = f.read()
+            text_model = markovify.NewlineText(text, state_size=cfg["randomness"])
+            output = text_model.make_short_sentence(word_amount, tries=100)
+            if not output:
+                return text_model.make_sentence(test_output=False) # fallback if we dont have enough text
+            return output
+
+    @staticmethod
+    @async_wrap
+    def choose(message, automatic, prepend=""):
+        ''' Used for server based text generation'''
+        if automatic and message.content.startswith(cfg["command_prefix"]):
+            return
+        if automatic and random() < 1-cfg["chance"]/100:
+            return
+        channel_type = GuildUtil.get_channel_type(message.channel.id, message.guild.id)
         if not channel_type:
             return
-        if message.channel.id not in get_whitelist(channel_type, message.guild.id):
+        whitelist = Whitelist.get(channel_type, message.guild.id)
+
+        if (channel_type == "private" or channel_type == "common") and message.channel.id in whitelist:
+            prepend += Makarov.generate(dirr=f"internal/{message.guild.id}/{channel_type}_msg_logs.makarov")
+        elif channel_type == "channel" and message.channel.id in whitelist:
+            prepend += Makarov.generate(dirr=f"internal/{message.guild.id}/{message.channel.id}_msg_logs.makarov")
+        return prepend
+
+    @staticmethod
+    async def find(message, query):
+        ''' Used for server based text generation'''
+        channel_type = GuildUtil.get_channel_type(message.channel.id, message.guild.id)
+        if not channel_type:
             return
+        whitelist = Whitelist.get(channel_type, message.guild.id)
 
-        output = ""
-        
-        if message.content:
-            output += message.content + "\n"
-        for attachment in message.attachments:
-            output += attachment.url + "\n"
+        directory = ""
+        if (channel_type == "private" or channel_type == "common") and message.channel.id in whitelist:
+            directory = f"internal/{message.guild.id}/{channel_type}_msg_logs.makarov"
+        elif channel_type == "channel" and message.channel.id in whitelist:
+            directory = f"internal/{message.guild.id}/{message.channel.id}_msg_logs.makarov"
 
-        if channel_type != "channel":
-            with open(f"internal/{message.guild.id}/{channel_type}_msg_logs.makarov", "a+") as f:
-                f.write(output)
-        elif channel_type == "channel":
-            with open(f"internal/{message.guild.id}/{message.channel.id}_msg_logs.makarov", "a+") as f:
-                f.write(output)            
-    except Exception:
-        log_error("error in markov_log_message")
+        output = []
+        with open(directory, encoding="utf-8", errors="ignore") as f:
+            for line in f.readlines():
+                if re.search(query, line) and (".png" in line or ".jpg" in line):
+                    output.append(line)
 
-def markov_generate(dirr):
-    ''' Used for text generation based on any file you input. Each separate message separated by a newline'''
-    order = 1
-    word_amount = int(random()*10)
-    with open(dirr, errors="ignore", encoding="utf-8") as f:
-        text = f.read()
-        text_model = markovify.NewlineText(text, state_size=cfg["randomness"])
-        output = text_model.make_short_sentence(word_amount, tries=100)
-        if not output:
-            return text_model.make_sentence(test_output=False) # fallback if we dont have enough text
         return output
 
-@async_wrap
-def markov_choose(message, automatic, prepend=""):
-    ''' Used for server based text generation'''
-    if automatic and message.content.startswith(cfg["command_prefix"]):
-        return
-    if automatic and random() < 1-cfg["chance"]/100:
-        return
-    channel_type = get_channel_type(message.channel.id, message.guild.id)
-    if not channel_type:
-        return
-    whitelist = get_whitelist(channel_type, message.guild.id)
+    @staticmethod
+    async def main_gen(message, automatic, prepend=""):
+        ''' Used for server based text generation'''
+        if automatic and GuildUtil.get_timeout(message.guild.id) > 0:
+            return
 
-    if (channel_type == "private" or channel_type == "common") and message.channel.id in whitelist:
-        prepend += markov_generate(dirr=f"internal/{message.guild.id}/{channel_type}_msg_logs.makarov")
-    elif channel_type == "channel" and message.channel.id in whitelist:
-        prepend += markov_generate(dirr=f"internal/{message.guild.id}/{message.channel.id}_msg_logs.makarov")
-    return prepend
+        markov_msg = await Makarov.choose(message, automatic, prepend)
+        if not markov_msg:
+            return
 
-async def markov_find(message, query):
-    ''' Used for server based text generation'''
-    channel_type = get_channel_type(message.channel.id, message.guild.id)
-    if not channel_type:
-        return
-    whitelist = get_whitelist(channel_type, message.guild.id)
-
-    directory = ""
-    if (channel_type == "private" or channel_type == "common") and message.channel.id in whitelist:
-        directory = f"internal/{message.guild.id}/{channel_type}_msg_logs.makarov"
-    elif channel_type == "channel" and message.channel.id in whitelist:
-        directory = f"internal/{message.guild.id}/{message.channel.id}_msg_logs.makarov"
-
-    output = []
-    with open(directory, encoding="utf-8", errors="ignore") as f:
-        for line in f.readlines():
-            if re.search(query, line) and (".png" in line or ".jpg" in line):
-                output.append(line)
-
-    return output
-
-async def markov_main(message, automatic, prepend=""):
-    ''' Used for server based text generation'''
-    if automatic and get_timeout(message.guild.id) > 0:
-        return
-
-    markov_msg = await markov_choose(message, automatic, prepend)
-    if not markov_msg:
-        return
-
-    async with message.channel.typing():
-        await asyncio.sleep(1 + random()*1.25)
-        if automatic:
-            await message.channel.send(markov_msg)
-        else:
-            await message.reply(markov_msg)
-        client.markov_timeout[message.guild.id] = cfg["timeout"]
+        async with message.channel.typing():
+            await asyncio.sleep(1 + random()*1.25)
+            if automatic:
+                await message.channel.send(markov_msg)
+            else:
+                await message.reply(markov_msg)
+            client.markov_timeout[message.guild.id] = cfg["timeout"]
 
 @tasks.loop(seconds=1)
 async def timer_decrement():
@@ -271,31 +290,31 @@ async def on_message(message):
         return
 
     try:
-        await markov_log_message(message)
-        await markov_main(message, automatic=True)
+        await Makarov.log_message(message)
+        await Makarov.main_gen(message, automatic=True)
     except Exception:
-        log_error("markov error")
+        Util.log_error("markov error")
 
     if client.user.mentioned_in(message):
         match message.content.split()[1:]:
             case ["allow_common", *args]:
-                await add_to_whitelist(message=message, typee="common")
+                await Whitelist.toggle(message=message, typee="common")
             case ["allow_private", *args]:
-                await add_to_whitelist(message=message, typee="private")
+                await Whitelist.toggle(message=message, typee="private")
             case ["allow_channel", *args]:
-                await add_to_whitelist(message=message, typee="channel")
+                await Whitelist.toggle(message=message, typee="channel")
             case ["randomness", *args]:
-                if not is_admin(message.author):
+                if not GuildUtil.is_admin(message.author):
                     await message.reply("You have no rights, comrade. Ask an admin to do this command.")
                     return
                 global cfg
                 cfg["randomness"] = int(args[0])
                 await message.reply(f"Set the randomness value to {int(args[0])}.\nIt'll be active only for the current bot session. To change it permanently update the config!")                
             case ["update", *args]:
-                if not is_admin(message.author):
+                if not GuildUtil.is_admin(message.author):
                     await message.reply("You have no rights, comrade. Ask an admin to do this command.")
                     return
-                await update_bot(message)
+                await Util.update_bot(message)
             case ["help", *args]:
                 await message.reply(f"```I have several commands that you can ping me with:\n" \
                                     f"\t- allow_private - Allow logging a channel that's considered private. Will generate text using using only private logs and post it only in private channels that have been whitelisted.\n" \
@@ -307,12 +326,12 @@ async def on_message(message):
             case ["damian", *args]:
                 async with message.channel.typing():
                     await asyncio.sleep(1 + random()*1.25)
-                    output = markov_generate(dirr="internal/damianluck.txt")
+                    output = Makarov.generate(dirr="internal/damianluck.txt")
                     await message.reply(output)
             case ["hvh", *args]:
                 async with message.channel.typing():
                     await asyncio.sleep(1 + random()*1.25)
-                    output = markov_generate(dirr="internal/hvh.txt")
+                    output = Makarov.generate(dirr="internal/hvh.txt")
                     output = output.split()
                     random_shit = ["(◣_◢)", "♕", "🙂", "(◣︵◢)"]
                     actual_output = []
@@ -324,21 +343,21 @@ async def on_message(message):
             case ["tomscott", *args]:
                 async with message.channel.typing():
                     await asyncio.sleep(1 + random()*1.25)
-                    output = markov_generate(dirr="internal/tomscott.txt")
+                    output = Makarov.generate(dirr="internal/tomscott.txt")
                     await message.reply(output)
             case ["ltt", *args]:
                 async with message.channel.typing():
                     await asyncio.sleep(1 + random()*1.25)
-                    output = markov_generate(dirr="internal/linus.txt")
+                    output = Makarov.generate(dirr="internal/linus.txt")
                     await message.reply(output)
             case ["teejay", *args]:
                 async with message.channel.typing():
                     await asyncio.sleep(1 + random()*1.25)
-                    output = markov_generate(dirr="internal/teejayx6.txt")
+                    output = Makarov.generate(dirr="internal/teejayx6.txt")
                     await message.reply(output)
             case ["impact", *args]:
                 async with message.channel.typing():
-                    urls = await markov_find(message, r"\/\/cdn\.discordapp\.com\/.{1,}\/.{1,}\/.{1,}\/.{1,}\..{1,6}")
+                    urls = await Makarov.find(message, r"\/\/cdn\.discordapp\.com\/.{1,}\/.{1,}\/.{1,}\/.{1,}\..{1,6}")
                     url = choice(urls).strip()
                     disassembled = urlparse(url)
                     filename, file_ext = os.path.splitext(os.path.basename(disassembled.path))
@@ -346,8 +365,8 @@ async def on_message(message):
                     with open(filename+file_ext, 'wb') as f:
                         f.write(img_data)
 
-                    text1 = await markov_choose(message, automatic=False)
-                    text2 = await markov_choose(message, automatic=False)
+                    text1 = await Makarov.choose(message, automatic=False)
+                    text2 = await Makarov.choose(message, automatic=False)
                     if not text1 or not text2:
                         return
 
@@ -375,7 +394,7 @@ async def on_message(message):
                     os.remove(filename+file_ext) 
                     os.remove(path)
             case _:
-                await markov_main(message, automatic=False)
+                await Makarov.main_gen(message, automatic=False)
                 
 if __name__ == '__main__':
     with open("configs/1.json") as f:
