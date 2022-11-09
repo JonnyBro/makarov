@@ -267,17 +267,30 @@ class Makarov:
 class ImageGen:
     @staticmethod
     async def generate(typee, message):
-        urls = await Makarov.find(message, r"\/\/cdn\.discordapp\.com\/.{1,}\/.{1,}\/.{1,}\/.{1,}\..{1,6}")
-        url = choice(urls).strip()
-        file, ext = os.path.splitext(os.path.basename(urlparse(url).path))
-        b_img = requests.get(url, headers={'User-Agent': 'makarov'}).content
-        with open(file + ext, 'wb') as f:
-            f.write(b_img)
+        file = None
+        ext = None
+        img = None
+        iter_limit = 20
+        iteration = 0
+        while True:
+            iteration += 1
+            urls = await Makarov.find(message, r"\/\/cdn\.discordapp\.com\/.{1,}\/.{1,}\/.{1,}\/.{1,}\..{1,6}")
+            url = choice(urls).strip()
+            file, ext = os.path.splitext(os.path.basename(urlparse(url).path))
+            b_img = requests.get(url, headers={'User-Agent': 'makarov'}).content
+            with open(file + ext, 'wb') as f:
+                f.write(b_img)
 
-        text1 = await Makarov.choose(message, automatic=False)
-        text2 = await Makarov.choose(message, automatic=False)
+            text1 = await Makarov.choose(message, automatic=False)
+            text2 = await Makarov.choose(message, automatic=False)
 
-        img = MakarovImage(file + ext)
+            img = MakarovImage(file + ext)
+
+            if img.size.x > 350 and img.size.y > 350:
+                break
+
+            if iteration > iter_limit:
+                break # couldnt find anything better? too bad i guess
         match typee:
             case "impact":
                 subtitles = []

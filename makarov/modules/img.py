@@ -120,6 +120,7 @@ class MakarovImage:
     def __init__(self, image_path):
         self.bg = Image.open(image_path)
         self.image_path = image_path
+        self.size = Coordinates(self.bg.size[0], self.bg.size[1])
 
     def add_meme_subtitle(self, subtitles):
         for subtitle_hl in subtitles:
