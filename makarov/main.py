@@ -1,6 +1,7 @@
 import discord
 from discord.ext import tasks
 import modules.markov as markov
+from modules.img import MakarovImage, Subtitle, Coordinates
 from random import randrange, choice, random
 import traceback
 import json
@@ -13,6 +14,9 @@ import subprocess
 import shlex
 import os
 import markovify
+import requests
+from urllib.parse import urlparse
+import re
 
 logging.basicConfig(level=logging.ERROR, filename=f"logs/makarov_{round(time())}.log", filemode="w")
 intents = discord.Intents.default()
@@ -202,6 +206,27 @@ def markov_choose(message, automatic, prepend=""):
         prepend += markov_generate(dirr=f"internal/{message.guild.id}/{message.channel.id}_msg_logs.makarov")
     return prepend
 
+async def markov_find(message, query):
+    ''' Used for server based text generation'''
+    channel_type = get_channel_type(message.channel.id, message.guild.id)
+    if not channel_type:
+        return
+    whitelist = get_whitelist(channel_type, message.guild.id)
+
+    directory = ""
+    if (channel_type == "private" or channel_type == "common") and message.channel.id in whitelist:
+        directory = f"internal/{message.guild.id}/{channel_type}_msg_logs.makarov"
+    elif channel_type == "channel" and message.channel.id in whitelist:
+        directory = f"internal/{message.guild.id}/{message.channel.id}_msg_logs.makarov"
+
+    output = []
+    with open(directory, encoding="utf-8", errors="ignore") as f:
+        for line in f.readlines():
+            if re.search(query, line):
+                output.append(line)
+
+    return output
+
 async def markov_main(message, automatic, prepend=""):
     ''' Used for server based text generation'''
     if automatic and get_timeout(message.guild.id) > 0:
@@ -309,6 +334,44 @@ async def on_message(message):
                     await asyncio.sleep(1 + random()*1.25)
                     output = markov_generate(dirr="internal/teejayx6.txt")
                     await message.reply(output)
+            case ["impact", *args]:
+                async with message.channel.typing():
+                    urls = await markov_find(message, r"\/\/cdn\.discordapp\.com\/.{1,}\/.{1,}\/.{1,}\/.{1,}\..{1,6}")
+                    url = choice(urls).strip()
+                    disassembled = urlparse(url)
+                    filename, file_ext = os.path.splitext(os.path.basename(disassembled.path))
+                    img_data = requests.get(url, headers={'User-Agent': 'makarov'}).content
+                    with open(filename+file_ext, 'wb') as f:
+                        f.write(img_data)
+
+                    text1 = await markov_choose(message, automatic=False)
+                    text2 = await markov_choose(message, automatic=False)
+                    if not text1 or not text2:
+                        return
+
+                    subtitles = []
+                    subtitles.append(Subtitle(pos=Coordinates(x=10, y=10), 
+                                        text=text1.upper(),
+                                        font_name="internal/impact.ttf",
+                                        font_size=64,
+                                        stroke=2,
+                                        top=False,
+                                        max_lines=2))
+                    if random() > 0.5:
+                        subtitles.append(Subtitle(pos=Coordinates(x=10, y=10), 
+                                            text=text2.upper(),
+                                            font_name="internal/impact.ttf",
+                                            font_size=64,
+                                            stroke=2,
+                                            top=True,
+                                            max_lines=2))
+                    img = MakarovImage(filename+file_ext)
+                    img.add_meme_subtitle(subtitles)
+                    path = img.save()
+
+                    await message.reply(file=discord.File(path))
+                    os.remove(filename+file_ext) 
+                    os.remove(path)
             case _:
                 await markov_main(message, automatic=False)
                 
