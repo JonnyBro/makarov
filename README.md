@@ -33,12 +33,6 @@ If you wish to do so, you can setup updating from a remote repository:
 
 ### TO-DO:
 
-- Generate images that don't make sense using the same text generation
+- Generate images that don't make sense using the same text generation (Impact done. Copy a bunch of shit from genai now!!)
   
 - Clean up the mess
-  
-
-### Credits:
-
-- JamesBrill - [GitHub - JamesBrill/Markov-Chain-Text-Generator: Script that generates random text based on a source text using a Markov chain.](https://github.com/JamesBrill/Markov-Chain-Text-Generator)
-
