@@ -151,6 +151,8 @@ async def add_to_whitelist(message, typee):
 def markov_log_message(message):
     ''' Logs discord messages to be used later '''
     try:
+        if clinet.user.mentioned_in(message):
+            return
         if not message.channel:
             return
         channel_type = get_channel_type(message.channel.id, message.guild.id)
