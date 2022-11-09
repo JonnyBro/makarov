@@ -1,6 +1,5 @@
 import discord
 from discord.ext import tasks
-import modules.markov as markov
 from modules.img import MakarovImage, Subtitle, Coordinates
 from random import randrange, choice, random
 import traceback
