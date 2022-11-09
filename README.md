@@ -1,6 +1,6 @@
 # Makarov
 
-"Simple" discord bot written on python and discord.py that generates gibberish using markov chains and whatever you talk about in  your server.
+"Simple" discord bot written on python and discord.py that generates gibberish using markov chains and whatever you talk about in your server.
 
 ### Commands:
 
@@ -20,7 +20,6 @@ To use these you have to ping the bot. The bot will generate text if it's pinged
 
 **update** - Pull from the repository and restart the bot. (explanation in "How to use")
 
-
 ### How to use:
 
 Download the repository, install dependecies from requirements.txt, configure the bot in makarov/configs/example.json, run main.py, allow a few channels to be logged and enjoy.
@@ -35,6 +34,8 @@ If you wish to do so, you can setup updating from a remote repository:
 
 ### TO-DO:
 
-- Generate images that don't make sense using the same text generation (Impact done. Copy a bunch of shit from genai now!!)
-  
+- Copy a bunch of stuff from GenAI (bruh, bugurt, demotivator, dialog, ~~impact~~, jacque, ~~lobster~~, comics, ~~string~~)
+
 - Clean up the mess
+
+
