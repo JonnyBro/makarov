@@ -301,6 +301,7 @@ async def on_message(message):
                                     f"\t- allow_common - Allow logging a public channel. Will generate text using only public logs and post it only in public channels that have been whitelisted.\n" \
                                     f"\t- allow_channel - Allow logging a certain channel. Will generate text using only logs from the specific whitelisted channel and post it only there.\n" \
                                     f"\t- teejay hvh linus damianluck tomscott - Generate text with text gathered from these people/topics.\n" \
+                                    f"\t- impact - Generate impact meme-styled images using the text generation.\n" \
                                     f"Don't input any command to generate server-based text.```\n")
             case ["damian", *args]:
                 async with message.channel.typing():
