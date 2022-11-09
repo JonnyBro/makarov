@@ -222,7 +222,7 @@ async def markov_find(message, query):
     output = []
     with open(directory, encoding="utf-8", errors="ignore") as f:
         for line in f.readlines():
-            if re.search(query, line):
+            if re.search(query, line) and (".png" in line or ".jpg" in line):
                 output.append(line)
 
     return output
