@@ -264,6 +264,53 @@ class Makarov:
                 await message.reply(markov_msg)
             client.markov_timeout[message.guild.id] = cfg["timeout"]
 
+class ImageGen:
+    @staticmethod
+    async def generate(typee, message):
+        urls = await Makarov.find(message, r"\/\/cdn\.discordapp\.com\/.{1,}\/.{1,}\/.{1,}\/.{1,}\..{1,6}")
+        url = choice(urls).strip()
+        file, ext = os.path.splitext(os.path.basename(urlparse(url).path))
+        b_img = requests.get(url, headers={'User-Agent': 'makarov'}).content
+        with open(file + ext, 'wb') as f:
+            f.write(b_img)
+
+        text1 = await Makarov.choose(message, automatic=False)
+        text2 = await Makarov.choose(message, automatic=False)
+
+        img = MakarovImage(file + ext)
+        match typee:
+            case "impact":
+                subtitles = []
+                subtitles.append(Subtitle(pos=Coordinates(x=10, y=10), 
+                                    text=text1.upper(),
+                                    font_name="internal/impact.ttf",
+                                    font_size=64,
+                                    stroke=2,
+                                    top=False,
+                                    max_lines=2))
+                if random() > 0.5:
+                    subtitles.append(Subtitle(pos=Coordinates(x=10, y=10), 
+                                        text=text2.upper(),
+                                        font_name="internal/impact.ttf",
+                                        font_size=64,
+                                        stroke=2,
+                                        top=True,
+                                        max_lines=2))
+                img.add_meme_subtitle(subtitles)
+            case "lobster":
+                img.add_vertical_gradient()
+                subtitle = Subtitle(pos=Coordinates(x=10,y=10),
+                                    text=text1,
+                                    font_name="internal/lobster.ttf",
+                                    font_size=32,
+                                    max_lines=2,
+                                    top=False)
+                img.add_meme_subtitle([subtitle])
+        path = img.save()
+        await message.reply(file=discord.File(path))
+        os.remove(file + ext) 
+        os.remove(path)
+
 @tasks.loop(seconds=1)
 async def timer_decrement():
     for guild in client.markov_timeout:
@@ -322,6 +369,7 @@ async def on_message(message):
                                     f"\t- allow_channel - Allow logging a certain channel. Will generate text using only logs from the specific whitelisted channel and post it only there.\n" \
                                     f"\t- teejay hvh linus damianluck tomscott - Generate text with text gathered from these people/topics.\n" \
                                     f"\t- impact - Generate impact meme-styled images using the text generation.\n" \
+                                    f"\t- lobster - Generate oldschool vk subtitled images using the text generation.\n" \
                                     f"Don't input any command to generate server-based text.```\n")
             case ["damian", *args]:
                 async with message.channel.typing():
@@ -356,43 +404,9 @@ async def on_message(message):
                     output = Makarov.generate(dirr="internal/teejayx6.txt")
                     await message.reply(output)
             case ["impact", *args]:
-                async with message.channel.typing():
-                    urls = await Makarov.find(message, r"\/\/cdn\.discordapp\.com\/.{1,}\/.{1,}\/.{1,}\/.{1,}\..{1,6}")
-                    url = choice(urls).strip()
-                    disassembled = urlparse(url)
-                    filename, file_ext = os.path.splitext(os.path.basename(disassembled.path))
-                    img_data = requests.get(url, headers={'User-Agent': 'makarov'}).content
-                    with open(filename+file_ext, 'wb') as f:
-                        f.write(img_data)
-
-                    text1 = await Makarov.choose(message, automatic=False)
-                    text2 = await Makarov.choose(message, automatic=False)
-                    if not text1 or not text2:
-                        return
-
-                    subtitles = []
-                    subtitles.append(Subtitle(pos=Coordinates(x=10, y=10), 
-                                        text=text1.upper(),
-                                        font_name="internal/impact.ttf",
-                                        font_size=64,
-                                        stroke=2,
-                                        top=False,
-                                        max_lines=2))
-                    if random() > 0.5:
-                        subtitles.append(Subtitle(pos=Coordinates(x=10, y=10), 
-                                            text=text2.upper(),
-                                            font_name="internal/impact.ttf",
-                                            font_size=64,
-                                            stroke=2,
-                                            top=True,
-                                            max_lines=2))
-                    img = MakarovImage(filename+file_ext)
-                    img.add_meme_subtitle(subtitles)
-                    path = img.save()
-
-                    await message.reply(file=discord.File(path))
-                    os.remove(filename+file_ext) 
-                    os.remove(path)
+                await ImageGen.generate(typee="impact", message=message)
+            case ["lobster", *args]:
+                await ImageGen.generate(typee="lobster", message=message)
             case _:
                 await Makarov.main_gen(message, automatic=False)
                 

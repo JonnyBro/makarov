@@ -16,6 +16,8 @@ To use these you have to ping the bot. The bot will generate text if it's pinged
 
 **impact** - Generate impact meme-styled images using the text generation.
 
+**lobster** - Generate oldschool vk subtitled images using the text generation.
+
 **update** - Pull from the repository and restart the bot. (explanation in "How to use")
 
 

@@ -118,9 +118,34 @@ class MakarovImage:
                 subtitle_ll.pos.y += offset.y
                 subtitle_ll.w_center(self.bg)
                 subtitle_ll.draw(self.bg)
-    
+
+    def add_vertical_gradient(self, gradient_magnitude=5):
+        if self.bg.mode != 'RGBA':
+            self.bg = self.bg.convert('RGBA')
+        bg_size = Coordinates(self.bg.size[0], self.bg.size[1])
+        gradient = Image.new('L', (1, bg_size.y), color=0xFF)
+        for y in range(bg_size.y):
+            gradient.putpixel((0, -y), int(255 * (1 - gradient_magnitude * float(y)/bg_size.y)))
+        alpha = gradient.resize(self.bg.size)
+        black_im = Image.new('RGBA', self.bg.size, color=0)
+        black_im.putalpha(alpha)
+        self.bg = Image.alpha_composite(self.bg, black_im)
+        
     def save(self):
         pathname, extension = os.path.splitext(self.image_path)
         path = "m_" + pathname + ".png"
         self.bg.save(path)
         return path
+
+if __name__ == "__main__":
+    img = MakarovImage("sample.jpg")
+    img.add_vertical_gradient()
+
+    subtitle = Subtitle(pos=Coordinates(x=10,y=10),
+                        text="lol",
+                        font_name="../internal/lobster.ttf",
+                        font_size=32,
+                        max_lines=2,
+                        top=False)
+    img.add_meme_subtitle([subtitle])
+    img.save()
