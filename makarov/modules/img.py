@@ -123,7 +123,7 @@ class Subtitle:
             origin.add(0, padding.y + abs(origin.y) + self.text_size.y / 2)
 
         if origin.y > (bg.height - padding.y):
-            origin.add(0, bg.height - padding.y - origin.y - self.text_size.y / 2)
+            origin.add(0, bg.height - padding.y - origin.y - self.text_size.y / 2 + 5)
 
         if origin.x < padding.x:
             origin.add(padding.x + abs(origin.x), 0)
