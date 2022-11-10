@@ -36,6 +36,8 @@ If you wish to do so, you can setup updating from a remote repository:
 
 - Copy a bunch of stuff from GenAI (bruh, bugurt, demotivator, dialog, ~~impact~~, jacque, ~~lobster~~, comics, ~~string~~)
 
+- Speech bubbles because it's still kinda funny
+
 - Clean up the mess
 
 
