@@ -15,22 +15,6 @@ class Coordinates:
         self.x = x
         self.y = y
 
-    def add(self, other, other2=None):
-        if type(other).__name__ == "Coordinates":
-            self.x += other.x
-            self.y += other.y
-        elif other2:
-            self.x += other
-            self.y += other2
-
-    def mult(self, other):
-        if type(other).__name__ == "Coordinates":
-            self.x *= other.x
-            self.y *= other.y
-        else:
-            self.x *= other
-            self.y *= other
-
 class Subtitle:
     def __init__(self, pos, text, font_name, font_size, shadow=False, shadow_offset=Coordinates(0,0), shadow_blur=3, max_lines=0, top=False, stroke=0, font_color=(255,255,255), stroke_color=(0, 0, 0), offset=Coordinates(0,0)):
         self.offset = offset
@@ -48,13 +32,6 @@ class Subtitle:
         self.shadow_blur = shadow_blur
         self.create_font()
 
-    def get_origin(self):
-        return Coordinates(self.pos.x - self.text_size.x/2, self.pos.y - self.text_size.y/2)
-
-    def set_origin(self, origin):
-        self.pos.x = origin.x + self.text_size.x/2
-        self.pos.y = origin.y + self.text_size.y/2
-
     def create_font(self):
         self.font_obj = ImageFont.truetype(self.font_name, self.font_size)
         bbox = self.font_obj.getbbox(self.text, stroke_width=self.stroke)
@@ -63,14 +40,14 @@ class Subtitle:
         self.char_size = Coordinates(char_bbox[2], char_bbox[3])
 
     def w_center(self, bg):
-        self.pos.x = (bg.width - self.text_size.x) / 2
+        self.pos.x = (bg.width - self.text_size.x) // 2
 
     def h_center(self, bg):
-        self.pos.y = (bg.height - self.text_size.y) / 2
+        self.pos.y = (bg.height - self.text_size.y) // 2
 
     def position(self, bg):
         if not self.top:
-            self.pos.y = bg.height - self.pos.y
+            self.pos.y = bg.height - self.pos.y*2 - self.char_size.y
 
     def fit(self, bg):
         while self.text_size.x > bg.width or self.text_size.y > bg.height:
@@ -84,54 +61,50 @@ class Subtitle:
     def wrap(self, bg, max_lines=0):
         ''' wraps the current subtitle and returns new subtitle objects '''
         ''' you can set a limit to it and it'll fit the font instead '''
-        ''' you HAVE to either use this or use self.fit, don't use them at the same time as it can cause bugs '''
         try:
             sub_obj = []
-            offsets = Coordinates(0,0)
-            max_iter = self.font_size + 1
+            offset = Coordinates(0,0)
+            max_iter = 500
             iteration = 0
-            while iteration < max_iter:
+            while True:
                 iteration += 1
-                wrapped = textwrap.wrap(self.text, (bg.width//self.char_size.x*2))
-                if max_lines != 0 and len(wrapped) > max_lines:
+                if iteration > max_iter: # self.char_size is not very accurate therefore there is a possibility we might get stuck. if we do, resize the text to get unstuck!
                     self.resize_down(bg)
+                wrapped = textwrap.wrap(self.text, bg.width//self.char_size.x*2)
+                if max_lines != 0 and len(wrapped) > max_lines:
+                    self.fit(bg)
                     continue
-                last_pos = Coordinates(0,0)
-                for line in reversed(wrapped):
-                    self.pos.y -= self.char_size.y + 5
-                    subtitle = Subtitle(pos=self.pos, 
-                                        text=line,
-                                        font_name=self.font_name, 
-                                        font_size=self.font_size, 
-                                        stroke=self.stroke,
-                                        offset=self.offset,
-                                        shadow=self.shadow,
-                                        shadow_offset=self.shadow_offset,
-                                        shadow_blur=self.shadow_blur)
-                    sub_obj.append(subtitle)
+                for line in wrapped:
+                    sub_obj.append(Subtitle(pos=self.pos, 
+                                            text=line,
+                                            font_name=self.font_name, 
+                                            font_size=self.font_size, 
+                                            stroke=self.stroke,
+                                            offset=offset,
+                                            shadow=self.shadow,
+                                            shadow_offset=self.shadow_offset,
+                                            shadow_blur=self.shadow_blur))
+                    offset.y += self.char_size.y + 5
                 break
             return sub_obj
         except Exception as e:
             print(e)
             return [self]
 
-    def clamp_origin(self, bg, padding):
-        ''' awful '''
-        origin = self.get_origin()
+    def clamp(self, bg):
+        if self.pos.x+self.char_size.x > bg.width:
+            self.pos.x = clamp(self.pos.x-self.char_size.x, 0, bg.width)
+        if self.pos.y+self.char_size.y > bg.height:
+            self.pos.y = clamp(self.pos.y-self.char_size.y, 0, bg.height)
 
-        if origin.y < padding.y:
-            origin.add(0, padding.y + abs(origin.y) + self.text_size.y / 2)
-
-        if origin.y > (bg.height - padding.y):
-            origin.add(0, bg.height - padding.y - origin.y - self.text_size.y / 4)
-
-        if origin.x < padding.x:
-            origin.add(padding.x + abs(origin.x), 0)
-
-        if origin.x > (bg.width - padding.x):
-            origin.add(bg.width - padding.x - origin.x, 0)
-
-        self.set_origin(origin)
+    def get_total_clamp_offset_y(self, bg, subtitles):
+        offset = Coordinates(0,0)
+        for i, sub in enumerate(subtitles):
+            if i == 0:
+                continue
+            if sub.pos.y + sub.char_size.y > bg.height:
+                offset.y -= sub.char_size.y
+        return offset
 
     def draw(self, bg):
         if self.shadow:
@@ -151,10 +124,12 @@ class MakarovImage:
 
     def add_meme_subtitle(self, subtitles):
         for subtitle_hl in subtitles:
+            subtitle_hl.clamp(self.bg)
             subtitle_hl.position(self.bg)
-            subtitle_hl.clamp_origin(self.bg, padding=Coordinates(25,25))
             wrapped_subtitles = subtitle_hl.wrap(self.bg, max_lines=subtitle_hl.max_lines)
+            offset = subtitle_hl.get_total_clamp_offset_y(self.bg, wrapped_subtitles)
             for subtitle_ll in wrapped_subtitles:
+                subtitle_ll.pos.y += offset.y
                 subtitle_ll.w_center(self.bg)
                 subtitle_ll.draw(self.bg)
 
@@ -180,15 +155,15 @@ class MakarovImage:
 
 if __name__ == "__main__":
     img = MakarovImage("sample.jpg")
-    subtitle = Subtitle(pos=Coordinates(x=0,y=0),
+    subtitle = Subtitle(pos=Coordinates(x=10,y=10),
                         text="lol",
-                        font_name="../internal/impact.ttf",
+                        font_name="../internal/lobster.ttf",
                         font_size=32,
                         shadow=True,
-                        shadow_offset=Coordinates(0,0),
+                        shadow_offset=Coordinates(1,1),
                         shadow_blur=2,
                         max_lines=2,
                         top=False)
-    #img.add_vertical_gradient(8)
+    img.add_vertical_gradient(8)
     img.add_meme_subtitle([subtitle])
     path = img.save()
