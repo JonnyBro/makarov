@@ -1,6 +1,6 @@
 import discord
 from discord.ext import tasks
-from modules.img import MakarovImage, Subtitle, Coordinates
+from modules.img import MakarovImage, Text, Coordinates
 from random import randrange, choice, random
 import traceback
 import json
@@ -294,33 +294,22 @@ class ImageGen:
         match typee:
             case "impact":
                 subtitles = []
-                subtitles.append(Subtitle(pos=Coordinates(x=10, y=10), 
-                                    text=text1.upper(),
-                                    font_name="internal/impact.ttf",
-                                    font_size=64,
-                                    stroke=2,
-                                    top=False,
-                                    max_lines=2))
+                subtitles.append(Text(text=text1.upper(), origin=Coordinates(0,0), position="bottom",
+                                    max_wrap_lines=2, font_name="../internal/impact.ttf", font_size=32,
+                                    font_color=(255,255,255), stroke_size=2, stroke_color=(0,0,0),
+                                    shadow=False, shadow_offset=Coordinates(1,1), shadow_blur=2, padding=Coordinates(0,0)))
                 if random() > 0.5:
-                    subtitles.append(Subtitle(pos=Coordinates(x=10, y=10), 
-                                        text=text2.upper(),
-                                        font_name="internal/impact.ttf",
-                                        font_size=64,
-                                        stroke=2,
-                                        top=True,
-                                        max_lines=2))
+                    subtitles.append(Text(text=text2.upper(), origin=Coordinates(0,0), position="top",
+                                        max_wrap_lines=2, font_name="../internal/impact.ttf", font_size=32,
+                                        font_color=(255,255,255), stroke_size=2, stroke_color=(0,0,0),
+                                        shadow=False, shadow_offset=Coordinates(1,1), shadow_blur=2, padding=Coordinates(0,0)))
                 img.add_meme_subtitle(subtitles)
             case "lobster":
-                img.add_vertical_gradient()
-                subtitle = Subtitle(pos=Coordinates(x=10,y=10),
-                                    text=text1,
-                                    font_name="internal/lobster.ttf",
-                                    font_size=32,
-                                    max_lines=2,
-                                    top=False,                        
-                                    shadow=True,
-                                    shadow_offset=Coordinates(1,1),
-                                    shadow_blur=2)
+                img.add_vertical_gradient(8)
+                subtitles.append(Text(text=text1, origin=Coordinates(0,0), position="bottom",
+                                    max_wrap_lines=2, font_name="../internal/lobster.ttf", font_size=16,
+                                    font_color=(255,255,255), stroke_size=0, stroke_color=(0,0,0),
+                                    shadow=False, shadow_offset=Coordinates(1,1), shadow_blur=2, padding=Coordinates(0,0)))
                 img.add_meme_subtitle([subtitle])
         path = img.save()
         await message.reply(file=discord.File(path))
