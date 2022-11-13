@@ -51,6 +51,13 @@ class ImageGenerator():
                     self.img = Image(file=f)
             case "solid_color":
                 self.img = Image(width=1280, height=720, pseudo="xc:" + self.image_path)
+        self.ctx = Drawing()
+
+    @staticmethod
+    def eval_metrics(ctx, image, txt):
+        """Quick helper function to calculate width/height of text."""
+        metrics = ctx.get_font_metrics(image, txt, True)
+        return (metrics.text_width, metrics.text_height)
 
     @staticmethod
     def word_wrap(image, ctx, text, roi_width, roi_height, padding_x=0, padding_y=0):
@@ -106,6 +113,9 @@ class ImageGenerator():
             factor = int((1000/self.img.width + 1000/self.img.height) / 2) + 1
 
         font_base = Font(font, size=size*factor, color=color)
+
+        self.ctx.font = font
+        self.ctx.font_size = size
 
         big_image_text = Image(width=self.img.width*factor, height=self.img.height*factor)
         big_image_text.background_color = Color("#00000000")
@@ -195,7 +205,6 @@ class ImageGenerator():
 
 class MemesGenerator:
     @staticmethod
-    @async_wrap
     def gen_egh():
         file = choice(os.listdir(f"{path_prepend}egh_pics/"))
         style = choice(["solid_color", "path"])
@@ -203,20 +212,20 @@ class MemesGenerator:
         if style == "solid_color":
             img = ImageGenerator(typee="solid_color", inputt=color)
 
-            egh_text = []
-            for i in range(200):
-                egh_text.append(choice(egh_blurb))
-            egh_text = " ".join(egh_text)
+            egh_text = choice(egh_blurb) + " "
+            char_size = ImageGenerator.eval_metrics(img.ctx, img.img, "WWW ")
+            while len(egh_text) < (img.img.width/(char_size[0]+10))*(img.img.height/(char_size[1]+10)) - img.img.width/(char_size[0]+10):
+                egh_text += choice(egh_blurb) + " "
 
             img.add_text_basic(egh_text, size=48)
             return img.save()
         elif style == "path":
             img = ImageGenerator(typee="path", inputt=f"{path_prepend}egh_pics/"+file)
 
-            egh_text = []
-            for i in range(int(img.img.width*img.img.height/max(img.img.width*img.img.height/100000*3, 24)/0.75) - 12):
-                egh_text.append(choice(egh_blurb))
-            egh_text = " ".join(egh_text)
+            egh_text = choice(egh_blurb) + " "
+            char_size = ImageGenerator.eval_metrics(img.ctx, img.img, "WWW ")
+            while len(egh_text) < (img.img.width/(char_size[0]+10))*(img.img.height/(char_size[1]+10)) - img.img.width/(char_size[0]+10):
+                egh_text += choice(egh_blurb) + " "
 
             img.add_text_basic(egh_text, font=f"{path_prepend}roman.ttf", color=Color("#10FF10"))
             return img.save()
@@ -253,5 +262,6 @@ class MemesGenerator:
 
 # gen_impact(typee="path", inputt="y9Di3zHOOas.jpg", texts=["lol", "kill yourself"], gravity=["north", "south"])
 # gen_lobster(typee="path", inputt="y9Di3zHOOas.jpg", text="lol")
-# gen_egh()
+
+#MemesGenerator.gen_egh()
 # gen_crazy_doxxer()
