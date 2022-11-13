@@ -204,7 +204,7 @@ class MemesGenerator:
             img = ImageGenerator(typee="solid_color", inputt=color)
 
             egh_text = []
-            for i in range(300):
+            for i in range(200):
                 egh_text.append(choice(egh_blurb))
             egh_text = " ".join(egh_text)
 
@@ -240,7 +240,7 @@ class MemesGenerator:
     def gen_impact(inputt, texts=[], typee="link", gravity=[]):
         img = ImageGenerator(typee, inputt)
         for i, text in enumerate(texts):
-            img.add_text(text.upper(), gravity=gravity[i], font=f"{path_prepend}impact.ttf", stroke_width=2, padding_y=20, padding_x=20)
+            img.add_text(text.upper(), gravity=gravity[i], font=f"{path_prepend}impact.ttf", stroke_width=2)
         return img.save()
 
     @staticmethod
@@ -248,7 +248,7 @@ class MemesGenerator:
     def gen_lobster(typee, inputt, text):
         img = ImageGenerator(typee, inputt)
         img.add_vertical_gradient()
-        img.add_text(text, gravity="south", font=f"{path_prepend}lobster.ttf", padding_y=10, padding_x=10, shadow=1, correct_for_italic=15)
+        img.add_text(text, gravity="south", font=f"{path_prepend}lobster.ttf", shadow=1, correct_for_italic=15)
         return img.save()
 
 # gen_impact(typee="path", inputt="y9Di3zHOOas.jpg", texts=["lol", "kill yourself"], gravity=["north", "south"])
