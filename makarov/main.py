@@ -1,6 +1,6 @@
 import discord
 from discord.ext import tasks
-from modules.img import MakarovImage, Subtitle, Coordinates
+from modules.makarov_img.img import MemesGenerator
 from random import randrange, choice, random
 import traceback
 import json
@@ -267,65 +267,36 @@ class Makarov:
 class ImageGen:
     @staticmethod
     async def generate(typee, message):
-        file = None
-        ext = None
-        img = None
-        iter_limit = 20
-        iteration = 0
-        while True:
-            iteration += 1
-            urls = await Makarov.find(message, r"\/\/cdn\.discordapp\.com\/.{1,}\/.{1,}\/.{1,}\/.{1,}\..{1,6}")
-            url = choice(urls).strip()
-            file, ext = os.path.splitext(os.path.basename(urlparse(url).path))
-            b_img = requests.get(url, headers={'User-Agent': 'makarov'}).content
-            with open(file + ext, 'wb') as f:
-                f.write(b_img)
+        urls = await Makarov.find(message, r"\/\/cdn\.discordapp\.com\/.{1,}\/.{1,}\/.{1,}\/.{1,}\..{1,6}")
+        url = choice(urls).strip()
 
-            text1 = await Makarov.choose(message, automatic=False)
-            text2 = await Makarov.choose(message, automatic=False)
+        text1 = await Makarov.choose(message, False)
+        text2 = await Makarov.choose(message, False)
 
-            img = MakarovImage(file + ext)
+        if not text1 or not text2:
+            return
 
-            if img.size.x > 350 and img.size.y > 350:
-                break
+        async with message.channel.typing():
+            path = None
+            match typee:
+                case "impact":
+                    gravity = []
+                    texts = []
+                    texts.append(text1)
+                    gravity.append("north")
+                    if random() > 0.5:
+                        texts.append(text2)
+                        gravity.append("south")
+                    path = await MemesGenerator.gen_impact(typee="link", inputt=url, texts=texts, gravity=gravity)
+                case "lobster":
+                    path = await MemesGenerator.gen_lobster(typee="link", inputt=url, text=text1)
+                case "egh":
+                    path = await MemesGenerator.gen_egh()
+                case "7pul":
+                    path = await MemesGenerator.gen_crazy_doxxer()
 
-            if iteration > iter_limit:
-                break # couldnt find anything better? too bad i guess
-        match typee:
-            case "impact":
-                subtitles = []
-                subtitles.append(Subtitle(pos=Coordinates(x=10, y=10), 
-                                    text=text1.upper(),
-                                    font_name="internal/impact.ttf",
-                                    font_size=64,
-                                    stroke=2,
-                                    top=False,
-                                    max_lines=2))
-                if random() > 0.5:
-                    subtitles.append(Subtitle(pos=Coordinates(x=10, y=10), 
-                                        text=text2.upper(),
-                                        font_name="internal/impact.ttf",
-                                        font_size=64,
-                                        stroke=2,
-                                        top=True,
-                                        max_lines=2))
-                img.add_meme_subtitle(subtitles)
-            case "lobster":
-                img.add_vertical_gradient()
-                subtitle = Subtitle(pos=Coordinates(x=10,y=10),
-                                    text=text1,
-                                    font_name="internal/lobster.ttf",
-                                    font_size=32,
-                                    max_lines=2,
-                                    top=False,                        
-                                    shadow=True,
-                                    shadow_offset=Coordinates(1,1),
-                                    shadow_blur=2)
-                img.add_meme_subtitle([subtitle])
-        path = img.save()
-        await message.reply(file=discord.File(path))
-        os.remove(file + ext) 
-        os.remove(path)
+            await message.reply(file=discord.File(path))
+            os.remove(path)
 
 @tasks.loop(seconds=1)
 async def timer_decrement():
@@ -423,6 +394,10 @@ async def on_message(message):
                 await ImageGen.generate(typee="impact", message=message)
             case ["lobster", *args]:
                 await ImageGen.generate(typee="lobster", message=message)
+            case ["egh", *args]:
+                await ImageGen.generate(typee="egh", message=message)
+            case ["7pul", *args]:
+                await ImageGen.generate(typee="7pul", message=message)
             case _:
                 await Makarov.main_gen(message, automatic=False)
                 
