@@ -192,7 +192,7 @@ class ImageGenerator():
         self.img.composite(image=end_img, operator="over", gravity=gravity)
 
     def add_vertical_gradient(self, factor=0.1, start=0, end=0.4):
-        canvas = Image(width=self.img.width, height=int(self.img.height*factor), pseudo=f"gradient:rgba(0,0,0,{start})-rgba(0,0,0,{end})")
+        canvas = Image(width=self.img.width, height=max(int(self.img.height*factor), 200), pseudo=f"gradient:rgba(0,0,0,{start})-rgba(0,0,0,{end})")
 
         self.img.composite_channel(channel="all", image=canvas, top=int(self.img.height*(1-factor))+2, operator="over")
 
