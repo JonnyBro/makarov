@@ -269,13 +269,12 @@ class Makarov:
 class ImageGen:
     @staticmethod
     async def generate(typee, message):
-        urls = await Makarov.find(message, r"\/\/cdn\.discordapp\.com\/.{1,}\/.{1,}\/.{1,}\/.{1,}\..{1,6}")
-        url = choice(urls).strip()
-
         async with message.channel.typing():
             path = None
             match typee:
                 case "impact":
+                    urls = await Makarov.find(message, r"\/\/cdn\.discordapp\.com\/.{1,}\/.{1,}\/.{1,}\/.{1,}\..{1,6}")
+                    url = choice(urls).strip()
                     text1 = await Makarov.choose(message, False)
                     text2 = await Makarov.choose(message, False)
                     if not text1 or not text2:
@@ -289,6 +288,8 @@ class ImageGen:
                         gravity.append("south")
                     path = await MemesGenerator.gen_impact(typee="link", inputt=url, texts=texts, gravity=gravity)
                 case "lobster":
+                    urls = await Makarov.find(message, r"\/\/cdn\.discordapp\.com\/.{1,}\/.{1,}\/.{1,}\/.{1,}\..{1,6}")
+                    url = choice(urls).strip()
                     text1 = await Makarov.choose(message, False)
                     if not text1:
                         return
