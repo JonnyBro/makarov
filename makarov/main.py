@@ -207,18 +207,16 @@ class Makarov:
 
     @staticmethod
     @async_wrap
-    def choose(message, automatic, ignore_channel=False, prepend=""):
+    def choose(message, automatic, prepend=""):
         ''' Used for server based text generation'''
         if automatic and message.content.startswith(cfg["command_prefix"]):
             return
         if automatic and random() < 1-cfg["chance"]/100:
             return
 
-        channel_type = None
-        if not ignore_channel:
-            channel_type = GuildUtil.get_channel_type(message.channel.id, message.guild.id)
-            if not channel_type:
-                return
+        channel_type = GuildUtil.get_channel_type(message.channel.id, message.guild.id)
+        if not channel_type:
+            return
 
         whitelist = Whitelist.get(channel_type, message.guild.id)
 
@@ -274,16 +272,14 @@ class ImageGen:
         urls = await Makarov.find(message, r"\/\/cdn\.discordapp\.com\/.{1,}\/.{1,}\/.{1,}\/.{1,}\..{1,6}")
         url = choice(urls).strip()
 
-        text1 = await Makarov.choose(message, False, ignore_channel=True)
-        text2 = await Makarov.choose(message, False, ignore_channel=True)
-
-        if not text1 or not text2:
-            return
-
         async with message.channel.typing():
             path = None
             match typee:
                 case "impact":
+                    text1 = await Makarov.choose(message, False)
+                    text2 = await Makarov.choose(message, False)
+                    if not text1 or not text2:
+                        return
                     gravity = []
                     texts = []
                     texts.append(text1)
@@ -293,6 +289,9 @@ class ImageGen:
                         gravity.append("south")
                     path = await MemesGenerator.gen_impact(typee="link", inputt=url, texts=texts, gravity=gravity)
                 case "lobster":
+                    text1 = await Makarov.choose(message, False)
+                    if not text1:
+                        return
                     path = await MemesGenerator.gen_lobster(typee="link", inputt=url, text=text1)
                 case "egh":
                     path = await MemesGenerator.gen_egh()

@@ -22,8 +22,6 @@ dox_blurb = ["slave", "finally dead", "killed him", "depressed", "fuck", "very",
                "john paster", "!!!!!!", "mouth", "deep", "senator", "dqz", "everyday", "slave of", "rijin", "lithium", "who was slave of", "lmaobox", 
                "nullcore", "aimware", "now slave of", "dox and kill all cheaters"]
 
-path_prepend = "modules/makarov_img/"
-
 def async_wrap(func):
     ''' Wrapper for sync functions to make them async '''
     @wraps(func)
@@ -210,7 +208,7 @@ class MemesGenerator:
     @async_wrap
     def gen_egh():
         # this sucks lol
-        file = choice(os.listdir(f"{path_prepend}egh_pics/"))
+        file = choice(os.listdir(f"internal/egh_pics/"))
         style = choice(["solid_color", "path"])
         color = "#10AA10"
         if style == "solid_color":
@@ -219,10 +217,10 @@ class MemesGenerator:
             buffer = choice(egh_blurb) + " "
             end_result = buffer
 
-            char_size = img.eval_metrics(img.get_context_for_basic(font="arial.ttf"), img.img, buffer)
+            char_size = img.eval_metrics(img.get_context_for_basic(font="internal/arial.ttf"), img.img, buffer)
 
-            while img.eval_metrics(img.get_context_for_basic(font="arial.ttf"), img.img, end_result)[1] < img.img.height + 64:
-                while img.eval_metrics(img.get_context_for_basic(font="arial.ttf"), img.img, buffer)[0] < img.img.width:
+            while img.eval_metrics(img.get_context_for_basic(font="internal/arial.ttf"), img.img, end_result)[1] < img.img.height + 64:
+                while img.eval_metrics(img.get_context_for_basic(font="internal/arial.ttf"), img.img, buffer)[0] < img.img.width:
                     buffer += choice(egh_blurb) + " "
                 end_result += buffer + "\n"
                 buffer = choice(egh_blurb) + " "
@@ -230,20 +228,20 @@ class MemesGenerator:
             img.add_text_basic(end_result.replace("\n", ""))
             return img.save()
         elif style == "path":
-            img = ImageGenerator(typee="path", inputt=f"{path_prepend}egh_pics/"+file)
+            img = ImageGenerator(typee="path", inputt=f"internal/egh_pics/"+file)
 
             buffer = choice(egh_blurb) + " "
             end_result = buffer
 
-            char_size = img.eval_metrics(img.get_context_for_basic(font=f"{path_prepend}roman.ttf"), img.img, buffer)
+            char_size = img.eval_metrics(img.get_context_for_basic(font=f"internal/roman.ttf"), img.img, buffer)
 
-            while img.eval_metrics(img.get_context_for_basic(font=f"{path_prepend}roman.ttf"), img.img, end_result)[1] < img.img.height + 64:
-                while img.eval_metrics(img.get_context_for_basic(font=f"{path_prepend}roman.ttf"), img.img, buffer)[0] < img.img.width:
+            while img.eval_metrics(img.get_context_for_basic(font=f"internal/roman.ttf"), img.img, end_result)[1] < img.img.height + 64:
+                while img.eval_metrics(img.get_context_for_basic(font=f"internal/roman.ttf"), img.img, buffer)[0] < img.img.width:
                     buffer += choice(egh_blurb) + " "
                 end_result += buffer + "\n"
                 buffer = choice(egh_blurb) + " "
 
-            img.add_text_basic(end_result.replace("\n", ""), font=f"{path_prepend}roman.ttf", color=Color("#10FF10"))
+            img.add_text_basic(end_result.replace("\n", ""), font=f"internal/roman.ttf", color=Color("#10FF10"))
             return img.save()
 
     @staticmethod
@@ -255,10 +253,10 @@ class MemesGenerator:
         buffer = choice(egh_blurb) + " "
         end_result = buffer
 
-        char_size = img.eval_metrics(img.get_context_for_basic(font="arial.ttf"), img.img, buffer)
+        char_size = img.eval_metrics(img.get_context_for_basic(font="internal/arial.ttf"), img.img, buffer)
 
-        while img.eval_metrics(img.get_context_for_basic(font="arial.ttf"), img.img, end_result)[1] < img.img.height + 64:
-            while img.eval_metrics(img.get_context_for_basic(font="arial.ttf"), img.img, buffer)[0] < img.img.width:
+        while img.eval_metrics(img.get_context_for_basic(font="internal/arial.ttf"), img.img, end_result)[1] < img.img.height + 64:
+            while img.eval_metrics(img.get_context_for_basic(font="internal/arial.ttf"), img.img, buffer)[0] < img.img.width:
                 buffer += choice(egh_blurb) + " "
             end_result += buffer + "\n"
             buffer = choice(egh_blurb) + " "
@@ -271,7 +269,7 @@ class MemesGenerator:
     def gen_impact(inputt, texts=[], typee="link", gravity=[]):
         img = ImageGenerator(typee, inputt)
         for i, text in enumerate(texts):
-            img.add_text(text.upper(), gravity=gravity[i], font=f"{path_prepend}impact.ttf", stroke_width=2)
+            img.add_text(text.upper(), gravity=gravity[i], font=f"internal/impact.ttf", stroke_width=2)
         return img.save()
 
     @staticmethod
@@ -279,7 +277,7 @@ class MemesGenerator:
     def gen_lobster(typee, inputt, text):
         img = ImageGenerator(typee, inputt)
         img.add_vertical_gradient()
-        img.add_text(text, gravity="south", font=f"{path_prepend}lobster.ttf", shadow=1, correct_for_italic=15)
+        img.add_text(text, gravity="south", font=f"internal/lobster.ttf", shadow=1, correct_for_italic=15)
         return img.save()
 
 # gen_impact(typee="path", inputt="y9Di3zHOOas.jpg", texts=["lol", "kill yourself"], gravity=["north", "south"])
