@@ -139,7 +139,7 @@ class ImageGenerator():
         #draw = Drawing()
 
         if not size:
-            size = max(self.img.width * self.img.height / 100000 * 3, 24)
+            size = max(self.img.width * self.img.height / 100000 * 3, 32)
 
         if not padding_y:
             padding_y = int(self.img.height * (1/50))
@@ -201,8 +201,7 @@ class ImageGenerator():
         if self.type == "file":
             parsed_url = urlparse(self.image_path)
             pathname, extension = os.path.splitext(os.path.basename(parsed_url.path))
-        path = f"{round(time())}_output.jpg"
-        self.img.compression_quality = 100
+        path = f"{round(time())}_output.png"
         self.img.save(filename=path)
         return path  
 
