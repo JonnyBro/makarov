@@ -18,6 +18,10 @@ To use these you have to ping the bot. The bot will generate text if it's pinged
 
 **lobster** - Generate oldschool vk subtitled images using the text generation.
 
+**egh** - Generate elder god heavy styled pictures (tf2 lore)
+
+**7pul** - This one is pretty personal as the text came from a guy trying to dox me but I think this deserves a public cmd lol
+
 **update** - Pull from the repository and restart the bot. (explanation in "How to use")
 
 ### How to use:
