@@ -250,16 +250,16 @@ class MemesGenerator:
         color = "#101010"
         img = ImageGenerator(typee="solid_color", inputt=color)
 
-        buffer = choice(egh_blurb) + " "
+        buffer = choice(dox_blurb) + " "
         end_result = buffer
 
         char_size = img.eval_metrics(img.get_context_for_basic(font="internal/arial.ttf"), img.img, buffer)
 
         while img.eval_metrics(img.get_context_for_basic(font="internal/arial.ttf"), img.img, end_result)[1] < img.img.height + 64:
             while img.eval_metrics(img.get_context_for_basic(font="internal/arial.ttf"), img.img, buffer)[0] < img.img.width:
-                buffer += choice(egh_blurb) + " "
+                buffer += choice(dox_blurb) + " "
             end_result += buffer + "\n"
-            buffer = choice(egh_blurb) + " "
+            buffer = choice(dox_blurb) + " "
 
         img.add_text_basic(end_result.replace("\n", ""), size=48)
         return img.save()
