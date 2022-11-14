@@ -51,7 +51,6 @@ class ImageGenerator():
                     self.img = Image(file=f)
             case "solid_color":
                 self.img = Image(width=1280, height=720, pseudo="xc:" + self.image_path)
-        self.ctx = Drawing()
 
     @staticmethod
     def eval_metrics(ctx, image, txt):
@@ -77,7 +76,6 @@ class ImageGenerator():
             if iteration_attempts > 100:
                 mutable_message = mutable_message[:-emergency_string_cut_index]
                 emergency_string_cut_index += 1
-                print(mutable_message)
             width, height = eval_metrics(mutable_message)
             if (height > roi_height - padding_y):
                 ctx.font_size -= 0.75  # Reduce pointsize
@@ -98,9 +96,17 @@ class ImageGenerator():
 
         return mutable_message
 
+    def get_context_for_basic(self, font, size=None):
+        if not size:
+            size = max(self.img.width * self.img.height / 100000 * 3, 48)
+        draw = Drawing()
+        draw.font_name = font
+        draw.font_size = size
+        return draw
+
     def add_text_basic(self, text, x=None, y=None, font="arial.ttf", padding_x=None, padding_y=None, color=Color("#ffffff"), size=None, gravity="north_west"):
         if not size:
-            size = max(self.img.width * self.img.height / 100000 * 3, 24)
+            size = max(self.img.width * self.img.height / 100000 * 3, 48)
 
         if not padding_y:
             padding_y = int(self.img.height * (1/50))
@@ -114,9 +120,6 @@ class ImageGenerator():
 
         font_base = Font(font, size=size*factor, color=color)
 
-        self.ctx.font = font
-        self.ctx.font_size = size
-
         big_image_text = Image(width=self.img.width*factor, height=self.img.height*factor)
         big_image_text.background_color = Color("#00000000")
         big_image_text.caption(text, font=font_base, gravity=gravity)
@@ -127,7 +130,7 @@ class ImageGenerator():
         end_img.resize(width=end_img.width//factor, height=end_img.height//factor)
         end_img.border(Color("#00000000"), padding_x, padding_y)
 
-        self.img.composite(image=end_img, operator="over", gravity="north")     
+        self.img.composite(image=end_img, operator="over", gravity="center")     
 
     def add_text(self, text, gravity="north", font="impact.ttf", color=Color("#ffffff"), size=None, stroke_width=0, padding_y=0, padding_x=0, shadow=0, shadow_offset=(0,0), correct_for_italic=None):
         ''' holy grail of dumb hacks to make it work how i want it '''
@@ -205,29 +208,43 @@ class ImageGenerator():
 
 class MemesGenerator:
     @staticmethod
+    @async_wrap
     def gen_egh():
+        # this sucks lol
         file = choice(os.listdir(f"{path_prepend}egh_pics/"))
         style = choice(["solid_color", "path"])
         color = "#10AA10"
         if style == "solid_color":
             img = ImageGenerator(typee="solid_color", inputt=color)
 
-            egh_text = choice(egh_blurb) + " "
-            char_size = ImageGenerator.eval_metrics(img.ctx, img.img, "WWW ")
-            while len(egh_text) < (img.img.width/(char_size[0]+10))*(img.img.height/(char_size[1]+10)) - img.img.width/(char_size[0]+10):
-                egh_text += choice(egh_blurb) + " "
+            buffer = choice(egh_blurb) + " "
+            end_result = buffer
 
-            img.add_text_basic(egh_text, size=48)
+            char_size = img.eval_metrics(img.get_context_for_basic(font="arial.ttf"), img.img, buffer)
+
+            while img.eval_metrics(img.get_context_for_basic(font="arial.ttf"), img.img, end_result)[1] < img.img.height + 64:
+                while img.eval_metrics(img.get_context_for_basic(font="arial.ttf"), img.img, buffer)[0] < img.img.width:
+                    buffer += choice(egh_blurb) + " "
+                end_result += buffer + "\n"
+                buffer = choice(egh_blurb) + " "
+
+            img.add_text_basic(end_result.replace("\n", ""))
             return img.save()
         elif style == "path":
             img = ImageGenerator(typee="path", inputt=f"{path_prepend}egh_pics/"+file)
 
-            egh_text = choice(egh_blurb) + " "
-            char_size = ImageGenerator.eval_metrics(img.ctx, img.img, "WWW ")
-            while len(egh_text) < (img.img.width/(char_size[0]+10))*(img.img.height/(char_size[1]+10)) - img.img.width/(char_size[0]+10):
-                egh_text += choice(egh_blurb) + " "
+            buffer = choice(egh_blurb) + " "
+            end_result = buffer
 
-            img.add_text_basic(egh_text, font=f"{path_prepend}roman.ttf", color=Color("#10FF10"))
+            char_size = img.eval_metrics(img.get_context_for_basic(font=f"{path_prepend}roman.ttf"), img.img, buffer)
+
+            while img.eval_metrics(img.get_context_for_basic(font=f"{path_prepend}roman.ttf"), img.img, end_result)[1] < img.img.height + 64:
+                while img.eval_metrics(img.get_context_for_basic(font=f"{path_prepend}roman.ttf"), img.img, buffer)[0] < img.img.width:
+                    buffer += choice(egh_blurb) + " "
+                end_result += buffer + "\n"
+                buffer = choice(egh_blurb) + " "
+
+            img.add_text_basic(end_result.replace("\n", ""), font=f"{path_prepend}roman.ttf", color=Color("#10FF10"))
             return img.save()
 
     @staticmethod
@@ -236,12 +253,18 @@ class MemesGenerator:
         color = "#101010"
         img = ImageGenerator(typee="solid_color", inputt=color)
 
-        egh_text = []
-        for i in range(300):
-            egh_text.append(choice(dox_blurb))
-        egh_text = " ".join(egh_text)
+        buffer = choice(egh_blurb) + " "
+        end_result = buffer
 
-        img.add_text_basic(egh_text, size=48)
+        char_size = img.eval_metrics(img.get_context_for_basic(font="arial.ttf"), img.img, buffer)
+
+        while img.eval_metrics(img.get_context_for_basic(font="arial.ttf"), img.img, end_result)[1] < img.img.height + 64:
+            while img.eval_metrics(img.get_context_for_basic(font="arial.ttf"), img.img, buffer)[0] < img.img.width:
+                buffer += choice(egh_blurb) + " "
+            end_result += buffer + "\n"
+            buffer = choice(egh_blurb) + " "
+
+        img.add_text_basic(end_result.replace("\n", ""), size=48)
         return img.save()
 
     @staticmethod
@@ -264,4 +287,4 @@ class MemesGenerator:
 # gen_lobster(typee="path", inputt="y9Di3zHOOas.jpg", text="lol")
 
 #MemesGenerator.gen_egh()
-# gen_crazy_doxxer()
+#MemesGenerator.gen_crazy_doxxer()
