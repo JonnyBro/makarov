@@ -157,9 +157,9 @@ class ImageGenerator():
         factored_width = int(self.img.width*factor)
         factored_height = int(self.img.height*factor)
 
-        font_base = Font(font, size=size*factor, color=color, stroke_color=Color("#00000000"), stroke_width=size * 0.15 * stroke_width)
-        font_outline = Font(font, size=size*factor, color=Color("#000000"), stroke_color=Color("#000000"), stroke_width=size * 0.15 * stroke_width)
-        font_shadow = Font(font, size=size*factor, color=Color("#000000F1"), stroke_color=Color("#000000F1"), stroke_width=size * 0.15 * stroke_width)
+        font_base = Font(font, size=size*factor, color=color, stroke_color=Color("#00000000"), stroke_width=size * 0.15 * stroke_width * factor)
+        font_outline = Font(font, size=size*factor, color=Color("#000000"), stroke_color=Color("#000000"), stroke_width=size * 0.15 * stroke_width * factor)
+        font_shadow = Font(font, size=size*factor, color=Color("#000000F1"), stroke_color=Color("#000000F1"), stroke_width=size * 0.15 * stroke_width * factor)
 
         big_image_text = Image(width=factored_width, height=factored_height)
         big_image_text.background_color = Color("#00000000")
