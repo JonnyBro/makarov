@@ -152,7 +152,7 @@ class ImageGenerator():
         factor = 1
 
         if self.img.width < 1000 or self.img.height < 1000:
-            factor = (1000/self.img.width + 1000/self.img.height) / 2 + 1
+            factor = int((1000/self.img.width + 1000/self.img.height) / 2 + 1)
 
         factored_width = int(self.img.width*factor)
         factored_height = int(self.img.height*factor)
