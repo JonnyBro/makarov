@@ -269,7 +269,7 @@ class MemesGenerator:
     def gen_impact(inputt, texts=[], typee="link", gravity=[]):
         img = ImageGenerator(typee, inputt)
         for i, text in enumerate(texts):
-            img.add_text(text.upper(), gravity=gravity[i], font=f"internal/impact.ttf", stroke_width=2)
+            img.add_text(text.upper(), gravity=gravity[i], font=f"internal/impact.ttf", stroke_width=0.8)
         return img.save()
 
     @staticmethod
