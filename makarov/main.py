@@ -327,6 +327,8 @@ async def on_message(message):
     if message.author == client.user or message.author.bot or not message.channel:
         return
 
+    global cfg
+
     try:
         await Makarov.log_message(message)
         await Makarov.main_gen(message, automatic=True)
@@ -345,9 +347,15 @@ async def on_message(message):
                 if not GuildUtil.is_admin(message.author):
                     await message.reply("You have no rights, comrade. Ask an admin to do this command.")
                     return
-                global cfg
                 cfg["randomness"] = int(args[0])
-                await message.reply(f"Set the randomness value to {int(args[0])}.\nIt'll be active only for the current bot session. To change it permanently update the config!")                
+                await message.reply(f"Set the randomness value to {int(args[0])}.\nIt'll be active only for the current bot session. To change it permanently update the config!")
+            case ["chance", *args]:
+                if not GuildUtil.is_admin(message.author):
+                    await message.reply("You have no rights, comrade. Ask an admin to do this command.")
+                    return
+                #global cfg
+                cfg["chance"] = int(args[0])
+                await message.reply(f"Set the chance value to {int(args[0])}.\nIt'll be active only for the current bot session. To change it permanently update the config!")
             case ["update", *args]:
                 if not GuildUtil.is_admin(message.author):
                     await message.reply("You have no rights, comrade. Ask an admin to do this command.")
