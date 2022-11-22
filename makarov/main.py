@@ -211,7 +211,7 @@ class Makarov:
         ''' Used for server based text generation'''
         if automatic and message.content.startswith(cfg["command_prefix"]):
             return
-        if automatic and random() < 1-cfg["chance"]/100:
+        if automatic and random() < cfg["chance"]/100:
             return
 
         channel_type = GuildUtil.get_channel_type(message.channel.id, message.guild.id)
