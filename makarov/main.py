@@ -140,7 +140,7 @@ class Whitelist:
             await message.reply(f"Can't have one channel being two different types at the same time! Remove it from **{channel_type}**!")
             return
 
-        whitelist = self.get(typee, message.guild.id)
+        whitelist = Whitelist.get(typee, message.guild.id)
 
         msg = ""
         if message.channel.id in whitelist:
