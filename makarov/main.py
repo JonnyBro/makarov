@@ -304,8 +304,8 @@ class ImageGen:
 
 @tasks.loop(seconds=1)
 async def timer_decrement():
-    for guild in client.markov_timeout:
-        guild = max(guild - 1, 0)
+    for key, item in client.markov_timeout.items():
+        client.markov_timeout[key] -= 1 
 
 @tasks.loop(seconds=30)
 async def custom_status():
