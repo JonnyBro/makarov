@@ -410,6 +410,8 @@ async def on_message(message):
                 await ImageGen.generate(typee="egh", message=message)
             case ["7pul", *args]:
                 await ImageGen.generate(typee="7pul", message=message)
+            case ["gen", *args]:
+                await Makarov.main_gen(message, automatic=False, prepend=" ".join(args))
             case _:
                 await Makarov.main_gen(message, automatic=False)
                 
