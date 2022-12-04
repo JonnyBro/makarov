@@ -221,9 +221,9 @@ class Makarov:
         whitelist = Whitelist.get(channel_type, message.guild.id)
 
         if (channel_type == "private" or channel_type == "common") and message.channel.id in whitelist:
-            prepend += Makarov.generate(dirr=f"internal/{message.guild.id}/{channel_type}_msg_logs.makarov")
+            prepend += " " + Makarov.generate(dirr=f"internal/{message.guild.id}/{channel_type}_msg_logs.makarov")
         elif channel_type == "channel" and message.channel.id in whitelist:
-            prepend += Makarov.generate(dirr=f"internal/{message.guild.id}/{message.channel.id}_msg_logs.makarov")
+            prepend += " " + Makarov.generate(dirr=f"internal/{message.guild.id}/{message.channel.id}_msg_logs.makarov")
         return prepend
 
     @staticmethod
