@@ -200,7 +200,7 @@ class Makarov:
         with open(dirr, errors="ignore", encoding="utf-8") as f:
             text = f.read()
             text_model = markovify.NewlineText(text, state_size=cfg["randomness"])
-            output = text_model.make_short_sentence(word_amount, tries=100)
+            output = text_model.make_sentence()
             if not output:
                 return text_model.make_sentence(test_output=False) # fallback if we dont have enough text
             return output
@@ -211,7 +211,7 @@ class Makarov:
         ''' Used for server based text generation'''
         if automatic and message.content.startswith(cfg["command_prefix"]):
             return
-        if automatic and random() < 1-cfg["chance"]/100:
+        if automatic and random() < cfg["chance"]/100:
             return
 
         channel_type = GuildUtil.get_channel_type(message.channel.id, message.guild.id)
