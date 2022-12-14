@@ -28,14 +28,6 @@ To use these you have to ping the bot. The bot will generate text if it's pinged
 
 Download the repository, install dependecies from requirements.txt, configure the bot in makarov/configs/example.json, run main.py, allow a few channels to be logged and enjoy.
 
-If you wish to do so, you can setup updating from a remote repository:
-
-- Either create a repository or pull this one (if you wish to create a private fork you'll need authentication keys to pull it)
-
-- Run the bot in the repo directory, so that it restarts everytime it exits (through daemons/services)
-
-- Use m.update to pull an update from the repo and restart the bot.
-
 ### TO-DO:
 
 - Copy a bunch of stuff from GenAI (bruh, bugurt, demotivator, dialog, ~~impact~~, jacque, ~~lobster~~, comics, ~~string~~)
