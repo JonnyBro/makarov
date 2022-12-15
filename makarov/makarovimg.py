@@ -32,7 +32,7 @@ def async_wrap(func):
         return await loop.run_in_executor(executor, pfunc)
     return run
 
-class ImageGenerator():
+class image_generator():
     def __init__(self, typee, inputt):
         self.image_path = inputt
         self.type = typee
@@ -203,82 +203,77 @@ class ImageGenerator():
         self.img.save(filename=path)
         return path  
 
-class MemesGenerator:
-    @staticmethod
-    @async_wrap
-    def gen_egh():
-        # this sucks lol
-        file = choice(os.listdir(f"internal/egh_pics/"))
-        style = choice(["solid_color", "path"])
-        color = "#10AA10"
-        if style == "solid_color":
-            img = ImageGenerator(typee="solid_color", inputt=color)
+@async_wrap
+def gen_egh():
+    # this sucks lol
+    file = choice(os.listdir(f"internal/egh_pics/"))
+    style = choice(["solid_color", "path"])
+    color = "#10AA10"
+    if style == "solid_color":
+        img = image_generator(typee="solid_color", inputt=color)
 
-            buffer = choice(egh_blurb) + " "
-            end_result = buffer
-
-            char_size = img.eval_metrics(img.get_context_for_basic(font="internal/arial.ttf"), img.img, buffer)
-
-            while img.eval_metrics(img.get_context_for_basic(font="internal/arial.ttf"), img.img, end_result)[1] < img.img.height + 64:
-                while img.eval_metrics(img.get_context_for_basic(font="internal/arial.ttf"), img.img, buffer)[0] < img.img.width:
-                    buffer += choice(egh_blurb) + " "
-                end_result += buffer + "\n"
-                buffer = choice(egh_blurb) + " "
-
-            img.add_text_basic(end_result.replace("\n", ""))
-            return img.save()
-        elif style == "path":
-            img = ImageGenerator(typee="path", inputt=f"internal/egh_pics/"+file)
-
-            buffer = choice(egh_blurb) + " "
-            end_result = buffer
-
-            char_size = img.eval_metrics(img.get_context_for_basic(font=f"internal/roman.ttf"), img.img, buffer)
-
-            while img.eval_metrics(img.get_context_for_basic(font=f"internal/roman.ttf"), img.img, end_result)[1] < img.img.height + 64:
-                while img.eval_metrics(img.get_context_for_basic(font=f"internal/roman.ttf"), img.img, buffer)[0] < img.img.width:
-                    buffer += choice(egh_blurb) + " "
-                end_result += buffer + "\n"
-                buffer = choice(egh_blurb) + " "
-
-            img.add_text_basic(end_result.replace("\n", ""), font=f"internal/roman.ttf", color=Color("#10FF10"))
-            return img.save()
-
-    @staticmethod
-    @async_wrap
-    def gen_crazy_doxxer():
-        color = "#101010"
-        img = ImageGenerator(typee="solid_color", inputt=color)
-
-        buffer = choice(dox_blurb) + " "
+        buffer = choice(egh_blurb) + " "
         end_result = buffer
 
         char_size = img.eval_metrics(img.get_context_for_basic(font="internal/arial.ttf"), img.img, buffer)
 
         while img.eval_metrics(img.get_context_for_basic(font="internal/arial.ttf"), img.img, end_result)[1] < img.img.height + 64:
             while img.eval_metrics(img.get_context_for_basic(font="internal/arial.ttf"), img.img, buffer)[0] < img.img.width:
-                buffer += choice(dox_blurb) + " "
+                buffer += choice(egh_blurb) + " "
             end_result += buffer + "\n"
-            buffer = choice(dox_blurb) + " "
+            buffer = choice(egh_blurb) + " "
 
-        img.add_text_basic(end_result.replace("\n", ""), size=48)
+        img.add_text_basic(end_result.replace("\n", ""))
+        return img.save()
+    elif style == "path":
+        img = image_generator(typee="path", inputt=f"internal/egh_pics/"+file)
+
+        buffer = choice(egh_blurb) + " "
+        end_result = buffer
+
+        char_size = img.eval_metrics(img.get_context_for_basic(font=f"internal/roman.ttf"), img.img, buffer)
+
+        while img.eval_metrics(img.get_context_for_basic(font=f"internal/roman.ttf"), img.img, end_result)[1] < img.img.height + 64:
+            while img.eval_metrics(img.get_context_for_basic(font=f"internal/roman.ttf"), img.img, buffer)[0] < img.img.width:
+                buffer += choice(egh_blurb) + " "
+            end_result += buffer + "\n"
+            buffer = choice(egh_blurb) + " "
+
+        img.add_text_basic(end_result.replace("\n", ""), font=f"internal/roman.ttf", color=Color("#10FF10"))
         return img.save()
 
-    @staticmethod
-    @async_wrap
-    def gen_impact(inputt, texts=[], typee="link", gravity=[]):
-        img = ImageGenerator(typee, inputt)
-        for i, text in enumerate(texts):
-            img.add_text(text.upper(), gravity=gravity[i], font=f"internal/impact.ttf", stroke_width=0.8)
-        return img.save()
+@async_wrap
+def gen_crazy_doxxer():
+    color = "#101010"
+    img = image_generator(typee="solid_color", inputt=color)
 
-    @staticmethod
-    @async_wrap
-    def gen_lobster(typee, inputt, text):
-        img = ImageGenerator(typee, inputt)
-        img.add_vertical_gradient()
-        img.add_text(text, gravity="south", font=f"internal/lobster.ttf", shadow=1, correct_for_italic=15)
-        return img.save()
+    buffer = choice(dox_blurb) + " "
+    end_result = buffer
+
+    char_size = img.eval_metrics(img.get_context_for_basic(font="internal/arial.ttf"), img.img, buffer)
+
+    while img.eval_metrics(img.get_context_for_basic(font="internal/arial.ttf"), img.img, end_result)[1] < img.img.height + 64:
+        while img.eval_metrics(img.get_context_for_basic(font="internal/arial.ttf"), img.img, buffer)[0] < img.img.width:
+            buffer += choice(dox_blurb) + " "
+        end_result += buffer + "\n"
+        buffer = choice(dox_blurb) + " "
+
+    img.add_text_basic(end_result.replace("\n", ""), size=48)
+    return img.save()
+
+@async_wrap
+def gen_impact(inputt, texts=[], typee="link", gravity=[]):
+    img = image_generator(typee, inputt)
+    for i, text in enumerate(texts):
+        img.add_text(text.upper(), gravity=gravity[i], font=f"internal/impact.ttf", stroke_width=0.8)
+    return img.save()
+
+@async_wrap
+def gen_lobster(typee, inputt, text):
+    img = image_generator(typee, inputt)
+    img.add_vertical_gradient()
+    img.add_text(text, gravity="south", font=f"internal/lobster.ttf", shadow=1, correct_for_italic=15)
+    return img.save()
 
 # gen_impact(typee="path", inputt="y9Di3zHOOas.jpg", texts=["lol", "kill yourself"], gravity=["north", "south"])
 # gen_lobster(typee="path", inputt="y9Di3zHOOas.jpg", text="lol")

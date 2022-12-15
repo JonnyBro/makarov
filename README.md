@@ -22,11 +22,9 @@ To use these you have to ping the bot. The bot will generate text if it's pinged
 
 **7pul** - This one is pretty personal as the text came from a guy trying to dox me but I think this deserves a public cmd lol
 
-**update** - Pull from the repository and restart the bot. (explanation in "How to use")
-
 ### How to use:
 
-Download the repository, install dependecies from requirements.txt, configure the bot in makarov/configs/example.json, run main.py, allow a few channels to be logged and enjoy.
+Download the repository, install dependecies from requirements.txt, install imagemagick, configure the bot in makarov/configs/example.json, run main.py, allow a few channels to be logged and enjoy.
 
 ### TO-DO:
 
