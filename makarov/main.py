@@ -32,24 +32,24 @@ def is_admin(author):
         log_error("error in GuildUtil.is_admin")
     return False
 
-def get_channel_type(channel_id, guild_id):
+def is_channel_type(channel_id, guild_id, typee):
     try:
-        with open(f"internal/{guild_id}/whitelisted_channels_channel.makarov") as f:
+        with open(f"internal/{guild_id}/whitelisted_channels_{typee}.makarov") as f:
             channel = json.load(f)
             if channel_id in channel:
-                return "channel"
-        with open(f"internal/{guild_id}/whitelisted_channels_common.makarov") as f:
-            common = json.load(f)
-            if channel_id in common:
-                return "common"
-        with open(f"internal/{guild_id}/whitelisted_channels_private.makarov") as f:
-            private = json.load(f)
-            if channel_id in private:
-                return "private"
-    except Exception:
-        #Util.log_error("Failed to get the channel type!")
-        #not very important error, we can just ignore it 
-        return None
+                return True
+    except FileNotFoundError:
+        pass
+    return False
+
+def get_channel_type(channel_id, guild_id):
+    # brother this stinks!!.. too bad lol
+    if is_channel_type(channel_id, guild_id, "channel"):
+        return "channel"
+    if is_channel_type(channel_id, guild_id, "common"):
+        return "common"
+    if is_channel_type(channel_id, guild_id, "private"):
+        return "private"
 
 def whitelist_get(typee, guild_id):
     try:
@@ -94,11 +94,10 @@ async def whitelist_toggle(message, typee):
 def log_message(message):
     ''' Logs discord messages to be used later '''
     try:
-        if client.user.mentioned_in(message):
-            return
-        if not message.channel:
+        if not message.channel or message.author == client.user or message.author.bot:
             return
         channel_type = get_channel_type(message.channel.id, message.guild.id)
+
         if not channel_type:
             return
         if message.channel.id not in whitelist_get(channel_type, message.guild.id):
@@ -106,8 +105,12 @@ def log_message(message):
 
         output = ""
         
-        if message.content:
-            output += message.content + "\n"
+        if message.clean_content:
+            if ". " in message.clean_content:
+                for sentence in message.clean_content.split(". "):
+                    output += sentence + "\n"
+            else:
+                output += message.clean_content + "\n"
         for attachment in message.attachments:
             output += attachment.url + "\n"
 
@@ -120,20 +123,70 @@ def log_message(message):
     except Exception:
         Util.log_error("error in Makarov.log_message")
 
-def generate_markov_text_internal(dirr):
+def make_sentence(text_model, typee, prepend=None, strict=True, test_output=True):
+    max_overlap_ratio = 0.65
+    output = None
+    if typee == "prepend":
+        try:
+            output = text_model.make_sentence_with_start(prepend, max_overlap_ratio=max_overlap_ratio, strict=strict)
+        except Exception as e:
+            log_error(str(e))
+    elif typee == "normal":
+        try:
+            output = text_model.make_sentence(max_overlap_ratio=max_overlap_ratio, test_output=test_output)
+        except Exception as e:
+            log_error(str(e))
+        if not output:
+            output = text_model.make_sentence(max_overlap_ratio=max_overlap_ratio, test_output=False)
+    return output
+
+def make_prepended_sentence(text_model, init_state):
+    # this is pretty ghetto but okay i guess lol
+    strict = True
+    forgotten_prepend = ""
+    output = None
+
+    output = make_sentence(text_model, "prepend", prepend=init_state, strict=strict)
+
+    # If we couldn't generate a sentence with the full prepend text, get the last word of it and try again
+    if not output:
+        forgotten_prepend = " ".join(reversed(init_state.split(" ")[:-1]))
+        init_state = init_state.split(" ")[-1] # get the last word
+    else:
+        return output
+    output = make_sentence(text_model, "prepend", prepend=init_state, strict=strict)
+
+    # We still couldn't do it so allow it to be more relaxed in regards of inspiration from the prepend
+    if not output:
+        strict = False
+    else:
+        return forgotten_prepend + " " + output
+    output = make_sentence(text_model, "prepend", prepend=forgotten_prepend+" "+init_state, strict=strict)
+
+    # Nothing above worked so just prepend the text manually the dumb way.
+    if not output:
+        output = forgotten_prepend + " " + init_state + " " + make_sentence(text_model, "normal")
+    else:
+        return output
+
+    return output
+
+def generate_markov_text_internal(dirr, init_state):
     ''' Used for text generation based on any file you input. Each separate message separated by a newline'''
-    order = 1
-    word_amount = int(random()*10)
     with open(dirr, errors="ignore", encoding="utf-8") as f:
         text = f.read()
         text_model = markovify.NewlineText(text, state_size=cfg["randomness"])
-        output = text_model.make_sentence()
-        if not output:
-            return text_model.make_sentence(test_output=False) # fallback if we dont have enough text
+        output = None
+
+        if init_state:
+            output = make_prepended_sentence(text_model, init_state)
+        else:
+            output = make_sentence(text_model, "normal")
+
         return output
 
 @async_wrap
-def generate_markov_text(message, automatic, prepend=""):
+def generate_markov_text(message, automatic, prepend=None):
     ''' Used for server based text generation'''
     if automatic and random() < cfg["chance"]/100:
         return
@@ -143,12 +196,12 @@ def generate_markov_text(message, automatic, prepend=""):
         return
 
     whitelist = whitelist_get(channel_type, message.guild.id)
-
+    output = ""
     if (channel_type == "private" or channel_type == "common") and message.channel.id in whitelist:
-        prepend += " " + generate_markov_text_internal(dirr=f"internal/{message.guild.id}/{channel_type}_msg_logs.makarov")
+        output = generate_markov_text_internal(dirr=f"internal/{message.guild.id}/{channel_type}_msg_logs.makarov", init_state=prepend)
     elif channel_type == "channel" and message.channel.id in whitelist:
-        prepend += " " + generate_markov_text_internal(dirr=f"internal/{message.guild.id}/{message.channel.id}_msg_logs.makarov")
-    return prepend
+        output = generate_markov_text_internal(dirr=f"internal/{message.guild.id}/{message.channel.id}_msg_logs.makarov", init_state=prepend)
+    return output
 
 async def logs_find(message, query):
     ''' Used for server based text generation'''
@@ -180,13 +233,13 @@ async def automatic_markov_generation(message, automatic, prepend=""):
     if not markov_msg:
         return
 
+    client.markov_timeout[message.guild.id] = cfg["timeout"]
     async with message.channel.typing():
         await asyncio.sleep(1 + random()*1.25)
         if automatic:
             await message.channel.send(markov_msg)
         else:
             await message.reply(markov_msg)
-        client.markov_timeout[message.guild.id] = cfg["timeout"]
 
 async def generate_markov_image(typee, message):
     async with message.channel.typing():
@@ -252,26 +305,43 @@ async def on_message(message):
 
     global cfg
 
+    already_generated = False
+
     try:
         await log_message(message)
-        await automatic_markov_generation(message, automatic=True)
     except Exception:
         log_error("markov error")
 
     if client.user.mentioned_in(message):
         match message.content.split()[1:]:
+            case ["log_history", *args]:
+                if not is_admin(message.author):
+                    await message.reply("You have no rights, comrade. Ask an admin to do this command.")
+                    return
+                async with message.channel.typing():
+                    await message.reply("Logging the message history... (Depending on how much messages there are this might take a really long while.)")
+                    try:
+                        async for message in message.channel.history(limit=None):
+                            await log_message(message)
+                    except Exception as e:
+                        await message.reply(f"Exception occured during the logging process: ```{e}```")
+                    await message.reply("Logged what we could. Enjoy, lol")
             case ["allow_common", *args]:
                 await whitelist_toggle(message=message, typee="common")
+                already_generated = True
             case ["allow_private", *args]:
                 await whitelist_toggle(message=message, typee="private")
+                already_generated = True
             case ["allow_channel", *args]:
                 await whitelist_toggle(message=message, typee="channel")
+                already_generated = True
             case ["randomness", *args]:
                 if not is_admin(message.author):
                     await message.reply("You have no rights, comrade. Ask an admin to do this command.")
                     return
                 cfg["randomness"] = int(args[0])
                 await message.reply(f"Set the randomness value to {int(args[0])}.\nIt'll be active only for the current bot session. To change it permanently update the config!")
+                already_generated = True
             case ["chance", *args]:
                 if not is_admin(message.author):
                     await message.reply("You have no rights, comrade. Ask an admin to do this command.")
@@ -279,6 +349,7 @@ async def on_message(message):
                 #global cfg
                 cfg["chance"] = int(args[0])
                 await message.reply(f"Set the chance value to {int(args[0])}.\nIt'll be active only for the current bot session. To change it permanently update the config!")
+                already_generated = True
             case ["help", *args]:
                 await message.reply(f"```I have several commands that you can ping me with:\n" \
                                     f"\t- allow_private - Allow logging a channel that's considered private. Will generate text using using only private logs and post it only in private channels that have been whitelisted.\n" \
@@ -290,11 +361,13 @@ async def on_message(message):
                                     f"\t- egh 7pul - Generate images styled with these topics in mind.\n" \
                                     f"\t- gen - Generate text and prepend input\n" \
                                     f"Don't input any command to generate server-based text.```\n")
+                already_generated = True
             case ["damian", *args]:
                 async with message.channel.typing():
                     await asyncio.sleep(1 + random()*1.25)
                     output = generate_markov_text_internal(dirr="internal/damianluck.txt")
                     await message.reply(output)
+                already_generated = True
             case ["hvh", *args]:
                 async with message.channel.typing():
                     await asyncio.sleep(1 + random()*1.25)
@@ -307,34 +380,47 @@ async def on_message(message):
                         if random() > 0.8:
                             actual_output.append(choice(random_shit))
                     await message.reply(" ".join(actual_output))
+                already_generated = True
             case ["tomscott", *args]:
                 async with message.channel.typing():
                     await asyncio.sleep(1 + random()*1.25)
                     output = generate_markov_text_internal(dirr="internal/tomscott.txt")
                     await message.reply(output)
+                already_generated = True
             case ["ltt", *args]:
                 async with message.channel.typing():
                     await asyncio.sleep(1 + random()*1.25)
                     output = generate_markov_text_internal(dirr="internal/linus.txt")
                     await message.reply(output)
+                already_generated = True
             case ["teejay", *args]:
                 async with message.channel.typing():
                     await asyncio.sleep(1 + random()*1.25)
                     output = generate_markov_text_internal(dirr="internal/teejayx6.txt")
                     await message.reply(output)
+                already_generated = True
             case ["impact", *args]:
                 await generate_markov_image(typee="impact", message=message)
+                already_generated = True
             case ["lobster", *args]:
                 await generate_markov_image(typee="lobster", message=message)
+                already_generated = True
             case ["egh", *args]:
                 await generate_markov_image(typee="egh", message=message)
+                already_generated = True
             case ["7pul", *args]:
                 await generate_markov_image(typee="7pul", message=message)
+                already_generated = True
             case ["gen", *args]:
                 await automatic_markov_generation(message, automatic=False, prepend=" ".join(args))
+                already_generated = True
             case _:
                 await automatic_markov_generation(message, automatic=False)
-                
+                already_generated = True
+
+    if not already_generated:
+        await automatic_markov_generation(message, automatic=True)
+
 if __name__ == '__main__':
     with open("configs/1.json") as f:
         cfg = json.load(f)
