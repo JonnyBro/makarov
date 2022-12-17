@@ -6,6 +6,7 @@ from time import time
 from functools import wraps, partial
 import traceback
 import asyncio
+from random import choice
 
 logging.basicConfig(level=logging.ERROR, filename=f"logs/makarov_{round(time())}.log", filemode="w")
 
@@ -51,3 +52,9 @@ async def send_wrapped_text(text, target, pre_text=False):
 def shell_exec(command):
     p = subprocess.Popen(shlex.split(command), stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()
     return p[0].decode("utf-8", errors="ignore")
+
+@async_wrap
+def get_random_line(file):
+    with open(file, encoding='UTF-8') as f:
+        links = f.read()
+        return choice(links.rstrip().splitlines())

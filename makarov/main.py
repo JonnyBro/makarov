@@ -1,7 +1,7 @@
 import discord
 from discord.ext import tasks
 from makarovimg import gen_impact, gen_lobster, gen_egh, gen_crazy_doxxer
-from util import create_dir, send_wrapped_text, shell_exec, log_error, async_wrap
+from util import create_dir, send_wrapped_text, shell_exec, log_error, async_wrap, get_random_line
 from random import randrange, choice, random
 import traceback
 import json
@@ -150,7 +150,7 @@ def make_prepended_sentence(text_model, init_state):
 
     # If we couldn't generate a sentence with the full prepend text, get the last word of it and try again
     if not output:
-        forgotten_prepend = " ".join(reversed(init_state.split(" ")[:-1]))
+        forgotten_prepend = " ".join(init_state.split(" ")[:-1])
         init_state = init_state.split(" ")[-1] # get the last word
     else:
         return output
@@ -171,7 +171,7 @@ def make_prepended_sentence(text_model, init_state):
 
     return output
 
-def generate_markov_text_internal(dirr, init_state):
+def generate_markov_text_internal(dirr, init_state=None):
     ''' Used for text generation based on any file you input. Each separate message separated by a newline'''
     with open(dirr, errors="ignore", encoding="utf-8") as f:
         text = f.read()
@@ -186,11 +186,8 @@ def generate_markov_text_internal(dirr, init_state):
         return output
 
 @async_wrap
-def generate_markov_text(message, automatic, prepend=None):
+def generate_markov_text(message, automatic=None, prepend=None):
     ''' Used for server based text generation'''
-    if automatic and random() < cfg["chance"]/100:
-        return
-
     channel_type = get_channel_type(message.channel.id, message.guild.id)
     if not channel_type:
         return
@@ -229,11 +226,16 @@ async def automatic_markov_generation(message, automatic, prepend=""):
     if automatic and get_timeout(message.guild.id) > 0:
         return
 
+    if automatic and random() < cfg["chance"]/100:
+        return
+
+    if automatic:
+        client.markov_timeout[message.guild.id] = cfg["timeout"]
+
     markov_msg = await generate_markov_text(message, automatic, prepend)
     if not markov_msg:
         return
 
-    client.markov_timeout[message.guild.id] = cfg["timeout"]
     async with message.channel.typing():
         await asyncio.sleep(1 + random()*1.25)
         if automatic:
@@ -360,6 +362,7 @@ async def on_message(message):
                                     f"\t- lobster - Generate oldschool vk subtitled images using the text generation.\n" \
                                     f"\t- egh 7pul - Generate images styled with these topics in mind.\n" \
                                     f"\t- gen - Generate text and prepend input\n" \
+                                    f"\t- dog capybara cat frog - Random image of the respective animal (unfiltered bing results that were scraped at least a year ago)\n" \
                                     f"Don't input any command to generate server-based text.```\n")
                 already_generated = True
             case ["damian", *args]:
@@ -411,6 +414,18 @@ async def on_message(message):
             case ["7pul", *args]:
                 await generate_markov_image(typee="7pul", message=message)
                 already_generated = True
+            case ["cat", *args]:
+                image_link = await get_random_line("internal/cat.txt")
+                await message.reply(image_link)
+            case ["dog", *args]:
+                image_link = await get_random_line("internal/dog.txt")
+                await message.reply(image_link)
+            case ["capybara", *args]:
+                image_link = await get_random_line("internal/capy.txt")
+                await message.reply(image_link)
+            case ["frog", *args]:
+                image_link = await get_random_line("internal/frog.txt")
+                await message.reply(image_link)
             case ["gen", *args]:
                 await automatic_markov_generation(message, automatic=False, prepend=" ".join(args))
                 already_generated = True
