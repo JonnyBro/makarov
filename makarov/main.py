@@ -13,16 +13,17 @@ import markovify
 import requests
 from urllib.parse import urlparse
 import re
+from urllib.request import urlopen, Request
 
 intents = discord.Intents.default()
 intents.message_content = True
 client = discord.Client(intents=intents)
 
 def get_timeout(guild_id):
-    if client.markov_timeout.get(guild_id) != None:
-        return client.markov_timeout.get(guild_id)
-    else:
-        return 0
+    return client.markov_timeout.get(guild_id, 0)
+
+def get_timeout_user(author_id):
+    return client.user_markov_timeout.get(author_id, 0)
 
 def is_admin(author):
     try:
@@ -221,54 +222,71 @@ async def logs_find(message, query):
 
     return output
 
-async def automatic_markov_generation(message, automatic, prepend=""):
+async def random_url(message):
+    urls = await logs_find(message, r"\/\/cdn\.discordapp\.com\/.{1,}\/.{1,}\/.{1,}\/.{1,}\..{1,6}")
+    if not urls:
+        return None
+    for i in range(50):
+        url = choice(urls).strip()
+        try:
+            req = Request(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36'})
+            response = urlopen(req)
+            if response.code == 200:
+                return url
+        except Exception:
+            pass
+
+async def automatic_markov_generation(message, automatic, prepend=None):
     ''' Used for server based text generation'''
     if automatic and get_timeout(message.guild.id) > 0:
         return
 
-    if automatic and random() < cfg["chance"]/100:
+    if automatic and random() < 1-cfg["chance"]/100:
         return
 
     if automatic:
         client.markov_timeout[message.guild.id] = cfg["timeout"]
 
-    markov_msg = await generate_markov_text(message, automatic, prepend)
-    if not markov_msg:
+    output = ""
+
+    if not prepend and random() < 0.2:
+        output = await random_url(message)
+    else:
+        output = await generate_markov_text(message, automatic, prepend)
+
+    if not output:
         return
 
     async with message.channel.typing():
         await asyncio.sleep(1 + random()*1.25)
         if automatic:
-            await message.channel.send(markov_msg)
+            await message.channel.send(output, allowed_mentions=discord.AllowedMentions.none())
         else:
-            await message.reply(markov_msg)
+            await message.reply(output, allowed_mentions=discord.AllowedMentions.none())
 
 async def generate_markov_image(typee, message):
     async with message.channel.typing():
         path = None
         match typee:
             case "impact":
-                urls = await logs_find(message, r"\/\/cdn\.discordapp\.com\/.{1,}\/.{1,}\/.{1,}\/.{1,}\..{1,6}")
-                url = choice(urls).strip()
-                text1 = await generate_markov_text(message, False)
-                text2 = await generate_markov_text(message, False)
-                if not text1 or not text2:
-                    return
+                url = await random_url(message)
                 gravity = []
                 texts = []
-                texts.append(text1)
+                texts.append(await generate_markov_text(message, False))
                 gravity.append("north")
                 if random() > 0.5:
-                    texts.append(text2)
+                    texts.append(await generate_markov_text(message, False))
                     gravity.append("south")
+                for text in texts:
+                    if not text:
+                        return
                 path = await gen_impact(typee="link", inputt=url, texts=texts, gravity=gravity)
             case "lobster":
-                urls = await logs_find(message, r"\/\/cdn\.discordapp\.com\/.{1,}\/.{1,}\/.{1,}\/.{1,}\..{1,6}")
-                url = choice(urls).strip()
-                text1 = await generate_markov_text(message, False)
-                if not text1:
+                url = await random_url(message)
+                text = await generate_markov_text(message, False)
+                if not text:
                     return
-                path = await gen_lobster(typee="link", inputt=url, text=text1)
+                path = await gen_lobster(typee="link", inputt=url, text=text)
             case "egh":
                 path = await gen_egh()
             case "7pul":
@@ -280,7 +298,9 @@ async def generate_markov_image(typee, message):
 @tasks.loop(seconds=1)
 async def timer_decrement():
     for key, item in client.markov_timeout.items():
-        client.markov_timeout[key] -= 1 
+        client.markov_timeout[key] = max(client.markov_timeout[key] - 1, 0)
+    for key, item in client.user_markov_timeout.items():
+        client.user_markov_timeout[key] = max(client.user_markov_timeout[key] - 1, 0)
 
 @tasks.loop(seconds=30)
 async def custom_status():
@@ -292,6 +312,8 @@ async def custom_status():
 @client.event
 async def on_ready():
     client.markov_timeout = {}
+    client.user_markov_timeout = {}
+    client.user_penalty_counter = {}
     logging.info(f'Starting timer decrement task...')
     timer_decrement.start()
     if cfg["custom_status"]:
@@ -307,14 +329,21 @@ async def on_message(message):
 
     global cfg
 
-    already_generated = False
-
     try:
         await log_message(message)
     except Exception:
         log_error("markov error")
 
+    if get_timeout_user(message.author.id) > 0:
+        client.user_penalty_counter[message.author.id] = client.user_penalty_counter.get(message.author.id, 0) + 1
+        if client.user_penalty_counter[message.author.id] == 5:
+            client.user_markov_timeout[message.author.id] = 86400
+            await message.reply("You have been penalized for spamming the bot. Behave yourself next time. (Timeout duration: 1 day)")
+        return
+
     if client.user.mentioned_in(message):
+        client.user_markov_timeout[message.author.id] = 10
+        client.user_penalty_counter[message.author.id] = 0
         match message.content.split()[1:]:
             case ["log_history", *args]:
                 if not is_admin(message.author):
@@ -330,20 +359,16 @@ async def on_message(message):
                     await message.reply("Logged what we could. Enjoy, lol")
             case ["allow_common", *args]:
                 await whitelist_toggle(message=message, typee="common")
-                already_generated = True
             case ["allow_private", *args]:
                 await whitelist_toggle(message=message, typee="private")
-                already_generated = True
             case ["allow_channel", *args]:
                 await whitelist_toggle(message=message, typee="channel")
-                already_generated = True
             case ["randomness", *args]:
                 if not is_admin(message.author):
                     await message.reply("You have no rights, comrade. Ask an admin to do this command.")
                     return
                 cfg["randomness"] = int(args[0])
                 await message.reply(f"Set the randomness value to {int(args[0])}.\nIt'll be active only for the current bot session. To change it permanently update the config!")
-                already_generated = True
             case ["chance", *args]:
                 if not is_admin(message.author):
                     await message.reply("You have no rights, comrade. Ask an admin to do this command.")
@@ -351,7 +376,6 @@ async def on_message(message):
                 #global cfg
                 cfg["chance"] = int(args[0])
                 await message.reply(f"Set the chance value to {int(args[0])}.\nIt'll be active only for the current bot session. To change it permanently update the config!")
-                already_generated = True
             case ["help", *args]:
                 await message.reply(f"```I have several commands that you can ping me with:\n" \
                                     f"\t- allow_private - Allow logging a channel that's considered private. Will generate text using using only private logs and post it only in private channels that have been whitelisted.\n" \
@@ -362,15 +386,14 @@ async def on_message(message):
                                     f"\t- lobster - Generate oldschool vk subtitled images using the text generation.\n" \
                                     f"\t- egh 7pul - Generate images styled with these topics in mind.\n" \
                                     f"\t- gen - Generate text and prepend input\n" \
+                                    f"\t- imagegen - Get a random image from chat history and post it.\n" \
                                     f"\t- dog capybara cat frog - Random image of the respective animal (unfiltered bing results that were scraped at least a year ago)\n" \
                                     f"Don't input any command to generate server-based text.```\n")
-                already_generated = True
             case ["damian", *args]:
                 async with message.channel.typing():
                     await asyncio.sleep(1 + random()*1.25)
                     output = generate_markov_text_internal(dirr="internal/damianluck.txt")
                     await message.reply(output)
-                already_generated = True
             case ["hvh", *args]:
                 async with message.channel.typing():
                     await asyncio.sleep(1 + random()*1.25)
@@ -383,37 +406,29 @@ async def on_message(message):
                         if random() > 0.8:
                             actual_output.append(choice(random_shit))
                     await message.reply(" ".join(actual_output))
-                already_generated = True
             case ["tomscott", *args]:
                 async with message.channel.typing():
                     await asyncio.sleep(1 + random()*1.25)
                     output = generate_markov_text_internal(dirr="internal/tomscott.txt")
                     await message.reply(output)
-                already_generated = True
             case ["ltt", *args]:
                 async with message.channel.typing():
                     await asyncio.sleep(1 + random()*1.25)
                     output = generate_markov_text_internal(dirr="internal/linus.txt")
                     await message.reply(output)
-                already_generated = True
             case ["teejay", *args]:
                 async with message.channel.typing():
                     await asyncio.sleep(1 + random()*1.25)
                     output = generate_markov_text_internal(dirr="internal/teejayx6.txt")
                     await message.reply(output)
-                already_generated = True
             case ["impact", *args]:
                 await generate_markov_image(typee="impact", message=message)
-                already_generated = True
             case ["lobster", *args]:
                 await generate_markov_image(typee="lobster", message=message)
-                already_generated = True
             case ["egh", *args]:
                 await generate_markov_image(typee="egh", message=message)
-                already_generated = True
             case ["7pul", *args]:
                 await generate_markov_image(typee="7pul", message=message)
-                already_generated = True
             case ["cat", *args]:
                 image_link = await get_random_line("internal/cat.txt")
                 await message.reply(image_link)
@@ -428,12 +443,13 @@ async def on_message(message):
                 await message.reply(image_link)
             case ["gen", *args]:
                 await automatic_markov_generation(message, automatic=False, prepend=" ".join(args))
-                already_generated = True
+            case ["imagegen", *args]:
+                output = await random_url(message)
+                if output:
+                    await message.reply(output)
             case _:
                 await automatic_markov_generation(message, automatic=False)
-                already_generated = True
-
-    if not already_generated:
+    else:
         await automatic_markov_generation(message, automatic=True)
 
 if __name__ == '__main__':
