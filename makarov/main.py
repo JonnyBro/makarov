@@ -253,13 +253,13 @@ async def logs_find(message, query):
     output = []
     with open(directory, encoding="utf-8", errors="ignore") as f:
         for line in f.readlines():
-            if re.search(query, line) and (".png" in line or ".jpg" in line):
+            if re.match(query, line):
                 output.append(line)
 
     return output
 
 async def random_url(message):
-    urls = await logs_find(message, r"\/\/cdn\.discordapp\.com\/.{1,}\/.{1,}\/.{1,}\/.{1,}\..{1,6}")
+    urls = await logs_find(message, r"https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()!@:%_\+.~#?&\/\/=]*)")
     if not urls:
         return None
     for i in range(50):
@@ -485,7 +485,7 @@ async def on_message(message):
                 await message.reply(image_link)
             case ["gen", *args]:
                 await automatic_markov_generation(message, automatic=False, prepend=" ".join(args))
-            case ["imagegen", *args]:
+            case ["urlgen", *args]:
                 output = await random_url(message)
                 if output:
                     await message.reply(output)
