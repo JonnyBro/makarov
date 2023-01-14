@@ -91,8 +91,7 @@ async def whitelist_toggle(message, typee):
 
     await message.reply(msg)
 
-@async_wrap
-def log_message(message):
+async def log_message(message, rapid=False):
     ''' Logs discord messages to be used later '''
     try:
         if not message.channel or message.author == client.user or message.author.bot:
@@ -115,14 +114,51 @@ def log_message(message):
         for attachment in message.attachments:
             output += attachment.url + "\n"
 
+        dirr = ""
         if channel_type != "channel":
-            with open(f"internal/{message.guild.id}/{channel_type}_msg_logs.makarov", "a+") as f:
-                f.write(output)
+            dirr = f"internal/{message.guild.id}/{channel_type}_msg_logs.makarov"
         elif channel_type == "channel":
-            with open(f"internal/{message.guild.id}/{message.channel.id}_msg_logs.makarov", "a+") as f:
-                f.write(output)            
+            dirr = f"internal/{message.guild.id}/{message.channel.id}_msg_logs.makarov"
+
+        with open(dirr, "a+") as f:
+            f.write(output)
     except Exception:
-        Util.log_error("error in Makarov.log_message")
+        log_error("error in Makarov.log_message")
+
+async def log_message_rapid(message, rapid=False):
+    ''' Logs discord messages to be used later '''
+    try:
+        if not message.channel or message.author == client.user or message.author.bot:
+            return
+        channel_type = get_channel_type(message.channel.id, message.guild.id)
+
+        if not channel_type:
+            return
+        if message.channel.id not in whitelist_get(channel_type, message.guild.id):
+            return
+
+        output = ""
+        
+        async for message_log in message.channel.history(limit=None):
+            if message_log.clean_content:
+                if ". " in message_log.clean_content:
+                    for sentence in message_log.clean_content.split(". "):
+                        output += sentence + "\n"
+                else:
+                    output += message_log.clean_content + "\n"
+            for attachment in message_log.attachments:
+                output += attachment.url + "\n"
+
+        dirr = ""
+        if channel_type != "channel":
+            dirr = f"internal/{message.guild.id}/{channel_type}_msg_logs.makarov"
+        elif channel_type == "channel":
+            dirr = f"internal/{message.guild.id}/{message.channel.id}_msg_logs.makarov"
+
+        with open(dirr, "a+") as f:
+            f.write(output)
+    except Exception:
+        log_error("error in Makarov.log_message")
 
 def make_sentence(text_model, typee, prepend=None, strict=True, test_output=True):
     max_overlap_ratio = 0.65
@@ -174,17 +210,17 @@ def make_prepended_sentence(text_model, init_state):
 
 def generate_markov_text_internal(dirr, init_state=None):
     ''' Used for text generation based on any file you input. Each separate message separated by a newline'''
+    text_model = None
     with open(dirr, errors="ignore", encoding="utf-8") as f:
         text = f.read()
         text_model = markovify.NewlineText(text, state_size=cfg["randomness"])
-        output = None
+    output = None
+    if init_state:
+        output = make_prepended_sentence(text_model, init_state)
+    else:
+        output = make_sentence(text_model, "normal")
 
-        if init_state:
-            output = make_prepended_sentence(text_model, init_state)
-        else:
-            output = make_sentence(text_model, "normal")
-
-        return output
+    return output
 
 @async_wrap
 def generate_markov_text(message, automatic=None, prepend=None):
@@ -314,6 +350,8 @@ async def on_ready():
     client.markov_timeout = {}
     client.user_markov_timeout = {}
     client.user_penalty_counter = {}
+    client.cached_models = {}
+
     logging.info(f'Starting timer decrement task...')
     timer_decrement.start()
     if cfg["custom_status"]:
@@ -352,8 +390,7 @@ async def on_message(message):
                 async with message.channel.typing():
                     await message.reply("Logging the message history... (Depending on how much messages there are this might take a really long while.)")
                     try:
-                        async for message in message.channel.history(limit=None):
-                            await log_message(message)
+                        await log_message_rapid(message)
                     except Exception as e:
                         await message.reply(f"Exception occured during the logging process: ```{e}```")
                     await message.reply("Logged what we could. Enjoy, lol")
@@ -420,6 +457,11 @@ async def on_message(message):
                 async with message.channel.typing():
                     await asyncio.sleep(1 + random()*1.25)
                     output = generate_markov_text_internal(dirr="internal/teejayx6.txt")
+                    await message.reply(output)
+            case ["gugafoods", *args]:
+                async with message.channel.typing():
+                    await asyncio.sleep(1 + random()*1.25)
+                    output = generate_markov_text_internal(dirr="internal/guga.txt")
                     await message.reply(output)
             case ["impact", *args]:
                 await generate_markov_image(typee="impact", message=message)

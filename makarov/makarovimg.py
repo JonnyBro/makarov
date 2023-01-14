@@ -130,20 +130,20 @@ class image_generator():
 
         self.img.composite(image=end_img, operator="over", gravity="center")     
 
-    def add_text(self, text, gravity="north", font="impact.ttf", color=Color("#ffffff"), size=None, stroke_width=0, padding_y=0, padding_x=0, shadow=0, shadow_offset=(0,0), correct_for_italic=None):
+    def add_text(self, text, gravity="north", font="impact.ttf", color=Color("#ffffff"), size=None, stroke_width=0, padding_y=0, padding_x=0, shadow=0, shadow_offset=(0,0), correct_for_italic=None, auto_padding_div=60, auto_font_scale=1):
         ''' holy grail of dumb hacks to make it work how i want it '''
         ''' takes a pretty long time to generate '''
 
         #draw = Drawing()
 
         if not size:
-            size = max(self.img.width * self.img.height / 100000 * 3, 32)
+            size = max(int(self.img.height / 15 * auto_font_scale), 16)
 
         if not padding_y:
-            padding_y = int(self.img.height * (1/50))
+            padding_y = int(self.img.height / auto_padding_div / 2)
 
         if not padding_x:
-            padding_x = int(self.img.width * (1/50))
+            padding_x = int(self.img.width / auto_padding_div / 2)
 
         italic_x_offset = 0
         if correct_for_italic:
@@ -157,9 +157,9 @@ class image_generator():
         factored_width = int(self.img.width*factor)
         factored_height = int(self.img.height*factor)
 
-        font_base = Font(font, size=size*factor, color=color, stroke_color=Color("#00000000"), stroke_width=size * 0.15 * stroke_width * factor)
-        font_outline = Font(font, size=size*factor, color=Color("#000000"), stroke_color=Color("#000000"), stroke_width=size * 0.15 * stroke_width * factor)
-        font_shadow = Font(font, size=size*factor, color=Color("#000000F1"), stroke_color=Color("#000000F1"), stroke_width=size * 0.15 * stroke_width * factor)
+        font_base = Font(font, size=size*factor, color=color, stroke_color=Color("#00000000"), stroke_width=size * 0.2 * stroke_width * factor)
+        font_outline = Font(font, size=size*factor, color=Color("#000000"), stroke_color=Color("#000000"), stroke_width=size * 0.2 * stroke_width * factor)
+        font_shadow = Font(font, size=size*factor, color=Color("#000000F1"), stroke_color=Color("#000000F1"), stroke_width=size * 0.2 * stroke_width * factor)
 
         big_image_text = Image(width=factored_width, height=factored_height)
         big_image_text.background_color = Color("#00000000")
@@ -199,7 +199,8 @@ class image_generator():
         if self.type == "file":
             parsed_url = urlparse(self.image_path)
             pathname, extension = os.path.splitext(os.path.basename(parsed_url.path))
-        path = f"{round(time())}_output.png"
+        path = f"{round(time())}_output.jpg"
+        self.img.compression_quality = 85
         self.img.save(filename=path)
         return path  
 
@@ -272,7 +273,7 @@ def gen_impact(inputt, texts=[], typee="link", gravity=[]):
 def gen_lobster(typee, inputt, text):
     img = image_generator(typee, inputt)
     img.add_vertical_gradient()
-    img.add_text(text, gravity="south", font=f"internal/lobster.ttf", shadow=1, correct_for_italic=15)
+    img.add_text(text, gravity="south", font=f"internal/lobster.ttf", shadow=1, correct_for_italic=15, auto_padding_div=100, auto_font_scale=1.5)
     return img.save()
 
 # gen_impact(typee="path", inputt="y9Di3zHOOas.jpg", texts=["lol", "kill yourself"], gravity=["north", "south"])
