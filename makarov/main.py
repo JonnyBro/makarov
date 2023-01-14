@@ -91,7 +91,7 @@ async def whitelist_toggle(message, typee):
 
     await message.reply(msg)
 
-async def log_message(message, rapid=False):
+async def log_message(message):
     ''' Logs discord messages to be used later '''
     try:
         if not message.channel or message.author == client.user or message.author.bot:
@@ -125,7 +125,7 @@ async def log_message(message, rapid=False):
     except Exception:
         log_error("error in Makarov.log_message")
 
-async def log_message_rapid(message, rapid=False):
+async def log_message_rapid(message):
     ''' Logs discord messages to be used later '''
     try:
         if not message.channel or message.author == client.user or message.author.bot:
@@ -137,26 +137,28 @@ async def log_message_rapid(message, rapid=False):
         if message.channel.id not in whitelist_get(channel_type, message.guild.id):
             return
 
-        output = ""
-        
-        async for message_log in message.channel.history(limit=None):
-            if message_log.clean_content:
-                if ". " in message_log.clean_content:
-                    for sentence in message_log.clean_content.split(". "):
-                        output += sentence + "\n"
-                else:
-                    output += message_log.clean_content + "\n"
-            for attachment in message_log.attachments:
-                output += attachment.url + "\n"
-
         dirr = ""
         if channel_type != "channel":
             dirr = f"internal/{message.guild.id}/{channel_type}_msg_logs.makarov"
         elif channel_type == "channel":
             dirr = f"internal/{message.guild.id}/{message.channel.id}_msg_logs.makarov"
+        
+        with open(dirr, "a+") as log_rapid_f:
+            async for message_log in message.channel.history(limit=None):
+                if not message_log.channel or message_log.author == client.user or message_log.author.bot:
+                    continue
+                if message_log.content:
+                    if ". " in message_log.content:
+                        for sentence in message_log.content.split(". "):
+                            #output += sentence + "\n"
+                            log_rapid_f.write(sentence + "\n")
+                    else:
+                        #output += message_log.content + "\n"
+                        log_rapid_f.write(message_log.content + "\n")
+                for attachment in message_log.attachments:
+                    #output += attachment.url + "\n"
+                    log_rapid_f.write(attachment.url + "\n")
 
-        with open(dirr, "a+") as f:
-            f.write(output)
     except Exception:
         log_error("error in Makarov.log_message")
 
