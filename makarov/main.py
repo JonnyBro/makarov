@@ -274,6 +274,20 @@ async def random_url(message):
         except Exception:
             pass
 
+async def random_discord_img(message):
+    urls = await logs_find(message, r"http.*:\/\/cdn\.discordapp\.com\/attachments\/.*\/.*\/.*\.(png|jpg)")
+    if not urls:
+        return None
+    for i in range(50):
+        url = choice(urls).strip()
+        try:
+            req = Request(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36'})
+            response = urlopen(req)
+            if response.code == 200:
+                return url
+        except Exception:
+            pass
+
 async def automatic_markov_generation(message, automatic, prepend=None):
     ''' Used for server based text generation'''
     if automatic and get_timeout(message.guild.id) > 0:
@@ -307,7 +321,9 @@ async def generate_markov_image(typee, message):
         path = None
         match typee:
             case "impact":
-                url = await random_url(message)
+                url = await random_discord_img(message)
+                if not url:
+                    return
                 gravity = []
                 texts = []
                 texts.append(await generate_markov_text(message, False))
@@ -320,7 +336,9 @@ async def generate_markov_image(typee, message):
                         return
                 path = await gen_impact(typee="link", inputt=url, texts=texts, gravity=gravity)
             case "lobster":
-                url = await random_url(message)
+                url = await random_discord_img(message)
+                if not url:
+                    return
                 text = await generate_markov_text(message, False)
                 if not text:
                     return
