@@ -120,7 +120,7 @@ async def log_message(message):
         elif channel_type == "channel":
             dirr = f"internal/{message.guild.id}/{message.channel.id}_msg_logs.makarov"
 
-        with open(dirr, "a+") as f:
+        with open(dirr, "a+", errors="ignore") as f:
             f.write(output)
     except Exception:
         log_error("error in Makarov.log_message")
@@ -143,7 +143,7 @@ async def log_message_rapid(message):
         elif channel_type == "channel":
             dirr = f"internal/{message.guild.id}/{message.channel.id}_msg_logs.makarov"
         
-        with open(dirr, "a+") as log_rapid_f:
+        with open(dirr, "a+", errors="ignore") as log_rapid_f:
             async for message_log in message.channel.history(limit=None):
                 if not message_log.channel or message_log.author == client.user or message_log.author.bot:
                     continue
