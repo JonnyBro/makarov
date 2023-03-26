@@ -163,7 +163,7 @@ async def log_message_rapid(message):
         log_error("error in Makarov.log_message")
 
 def make_sentence(text_model, typee, prepend=None, strict=True, test_output=True):
-    max_overlap_ratio = 0.65
+    max_overlap_ratio = cfg["max_overlap"]
     output = None
     if typee == "prepend":
         try:
@@ -426,6 +426,12 @@ async def on_message(message):
                     return
                 cfg["randomness"] = int(args[0])
                 await message.reply(f"Set the randomness value to {int(args[0])}.\nIt'll be active only for the current bot session. To change it permanently update the config!")
+            case ["max_overlap", *args]:
+                if not is_admin(message.author):
+                    await message.reply("You have no rights, comrade. Ask an admin to do this command.")
+                    return
+                cfg["max_overlap"] = float(args[0])            
+                await message.reply(f"Set the max overlap value to {float(args[0])}.\nIt'll be active only for the current bot session. To change it permanently update the config!")    
             case ["chance", *args]:
                 if not is_admin(message.author):
                     await message.reply("You have no rights, comrade. Ask an admin to do this command.")

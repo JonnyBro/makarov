@@ -4,5 +4,6 @@
 	"custom_status": true,
 	"timeout": 30,
 	"chance": 20,
-	"randomness": 1
+	"randomness": 1,
+	"max_overlap": 0.75
 }
