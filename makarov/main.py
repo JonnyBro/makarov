@@ -392,14 +392,13 @@ async def on_message(message):
     except Exception:
         log_error("markov error")
 
-    if get_timeout_user(message.author.id) > 0:
-        client.user_penalty_counter[message.author.id] = client.user_penalty_counter.get(message.author.id, 0) + 1
-        if client.user_penalty_counter[message.author.id] == 5:
-            client.user_markov_timeout[message.author.id] = 86400
-            await message.reply("You have been penalized for spamming the bot. Behave yourself next time. (Timeout duration: 1 day)")
-        return
-
-    if client.user.mentioned_in(message):
+    if client.user.mentioned_in(message):     
+        if get_timeout_user(message.author.id) > 0:
+            client.user_penalty_counter[message.author.id] = client.user_penalty_counter.get(message.author.id, 0) + 1
+            if client.user_penalty_counter[message.author.id] == 5:
+                client.user_markov_timeout[message.author.id] = 86400
+                await message.reply("You have been penalized for spamming the bot. Behave yourself next time. (Timeout duration: 1 day)")
+            return
         client.user_markov_timeout[message.author.id] = 10
         client.user_penalty_counter[message.author.id] = 0
         match message.content.split()[1:]:
