@@ -2,10 +2,11 @@ import os
 import subprocess
 import shlex
 import logging
-from time import time
-from functools import wraps, partial
 import traceback
 import asyncio
+
+from time import time
+from functools import wraps, partial
 from random import choice
 
 logging.basicConfig(level=logging.ERROR, filename=f"logs/makarov_{round(time())}.log", filemode="w")
@@ -58,3 +59,8 @@ def get_random_line(file):
     with open(file, encoding='UTF-8') as f:
         links = f.read()
         return choice(links.rstrip().splitlines())
+
+def get_url_file_name(url):
+    url = url.split("#")[0]
+    url = url.split("?")[0]
+    return os.path.basename(url)

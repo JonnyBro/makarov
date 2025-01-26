@@ -1,6 +1,7 @@
 import os
-from urllib.request import urlopen, Request
-from urllib.parse import urlparse
+import asyncio
+import httpx
+
 from textwrap import wrap
 from wand.image import Image
 from wand.drawing import Drawing
@@ -9,7 +10,7 @@ from wand.color import Color
 from random import choice
 from functools import wraps, partial
 from time import time
-import asyncio
+
 
 egh_blurb = ["1080p 60fps", "h@s", "pedo", "ped0","crackhead", "l0ser", "tiny", "short", "james", "tilar", "femboy", "rud", "sentor", "snowy", "she", "her", "he", "owned",
              "DOMINATED", "HVH", "In HVH!", "squat", "pedo squat", "rq", "RQs", "coby", "enzic", "static", "james", "hey nick", "smokes week l0l", "l0l", "feet pics",
@@ -38,12 +39,8 @@ class image_generator():
         self.type = typee
         match typee:
             case "link":
-                req = Request(
-                    self.image_path, 
-                    headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36'}
-                )
-                image_file = urlopen(req) 
-                self.img = Image(file=image_file)
+                r = httpx.get(self.image_path)
+                self.img = Image(blob=r.content)
             case "path":
                 with open(self.image_path, "rb") as f:
                     self.img = Image(file=f)
@@ -195,10 +192,6 @@ class image_generator():
         self.img.composite_channel(channel="all", image=canvas, top=int(self.img.height*(1-factor))+2, operator="over")
 
     def save(self):
-        pathname, extension = os.path.splitext(self.image_path)
-        if self.type == "file":
-            parsed_url = urlparse(self.image_path)
-            pathname, extension = os.path.splitext(os.path.basename(parsed_url.path))
         path = f"{round(time())}_output.jpg"
         self.img.compression_quality = 85
         self.img.save(filename=path)
@@ -275,9 +268,3 @@ def gen_lobster(typee, inputt, text):
     img.add_vertical_gradient()
     img.add_text(text, gravity="south", font=f"internal/lobster.ttf", shadow=1, correct_for_italic=15, auto_padding_div=100, auto_font_scale=1.5)
     return img.save()
-
-# gen_impact(typee="path", inputt="y9Di3zHOOas.jpg", texts=["lol", "kill yourself"], gravity=["north", "south"])
-# gen_lobster(typee="path", inputt="y9Di3zHOOas.jpg", text="lol")
-
-#MemesGenerator.gen_egh()
-#MemesGenerator.gen_crazy_doxxer()

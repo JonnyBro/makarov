@@ -1,19 +1,20 @@
 import discord
 from discord.ext import tasks
-from makarovimg import gen_impact, gen_lobster, gen_egh, gen_crazy_doxxer
-from util import create_dir, send_wrapped_text, shell_exec, log_error, async_wrap, get_random_line
-from random import randrange, choice, random
+
 import traceback
 import json
 import logging
 import asyncio
-from time import sleep
 import os
 import markovify
-import requests
-from urllib.parse import urlparse
 import re
-from urllib.request import urlopen, Request
+import httpx
+
+from time import sleep, time
+
+from makarovimg import gen_impact, gen_lobster, gen_egh, gen_crazy_doxxer
+from util import create_dir, send_wrapped_text, shell_exec, log_error, async_wrap, get_random_line, get_url_file_name
+from random import randrange, choice, random
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -21,9 +22,6 @@ client = discord.Client(intents=intents)
 
 def get_timeout(guild_id):
     return client.markov_timeout.get(guild_id, 0)
-
-def get_timeout_user(author_id):
-    return client.user_markov_timeout.get(author_id, 0)
 
 def is_admin(author):
     try:
@@ -112,7 +110,13 @@ async def log_message(message):
             else:
                 output += message.clean_content + "\n"
         for attachment in message.attachments:
-            output += attachment.url + "\n"
+            if attachment.url.startswith("https://cdn.discordapp.com/"):
+                r = httpx.get(attachment.url)
+                if len(r.content) <= 1048576:
+                    with open(f"internal/{message.guild.id}/{channel_type}_attachment_{time()}_{get_url_file_name(attachment.url)}", "wb") as f:
+                        f.write(r.content)
+            else:
+                output += attachment.url + "\n" 
 
         dirr = ""
         if channel_type != "channel":
@@ -150,15 +154,17 @@ async def log_message_rapid(message):
                 if message_log.content:
                     if ". " in message_log.content:
                         for sentence in message_log.content.split(". "):
-                            #output += sentence + "\n"
                             log_rapid_f.write(sentence + "\n")
                     else:
-                        #output += message_log.content + "\n"
                         log_rapid_f.write(message_log.content + "\n")
                 for attachment in message_log.attachments:
-                    #output += attachment.url + "\n"
-                    log_rapid_f.write(attachment.url + "\n")
-
+                    if attachment.url.startswith("https://cdn.discordapp.com/"):
+                        r = httpx.get(attachment.url)
+                        if len(r.content) <= 1048576:
+                            with open(f"internal/{message.guild.id}/{channel_type}_attachment_{time()}_{get_url_file_name(attachment.url)}", "wb") as f:
+                                f.write(r.content)
+                    else:
+                        log_rapid_f.write(attachment.url + "\n")
     except Exception:
         log_error("error in Makarov.log_message")
 
@@ -239,6 +245,27 @@ def generate_markov_text(message, automatic=None, prepend=None):
         output = generate_markov_text_internal(dirr=f"internal/{message.guild.id}/{message.channel.id}_msg_logs.makarov", init_state=prepend)
     return output
 
+async def get_random_att(message, ext=None):
+    ''' Server based att pick '''
+    channel_type = get_channel_type(message.channel.id, message.guild.id)
+    if not channel_type:
+        return
+    whitelist = whitelist_get(channel_type, message.guild.id)
+
+    begin = ""
+
+    if (channel_type == "private" or channel_type == "common") and message.channel.id in whitelist:
+        begin = f"internal/{message.guild.id}/{channel_type}_attachment_"
+    elif channel_type == "channel" and message.channel.id in whitelist:
+        begin = f"internal/{message.guild.id}/{message.channel.id}_attachment_"
+
+    files = [os.path.join(f"internal/{message.guild.id}/", f) for f in os.listdir(f"internal/{message.guild.id}/") if os.path.isfile(os.path.join(f"internal/{message.guild.id}/", f)) and os.path.join(f"internal/{message.guild.id}/", f).startswith(begin) and (ext == None or os.path.join(f"internal/{message.guild.id}/", f).endswith(ext))]
+
+    if len(files) <= 0:
+        return ""
+
+    return choice(files)
+
 async def logs_find(message, query):
     ''' Used for server based text generation'''
     channel_type = get_channel_type(message.channel.id, message.guild.id)
@@ -267,23 +294,8 @@ async def random_url(message):
     for i in range(50):
         url = choice(urls).strip()
         try:
-            req = Request(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36'})
-            response = urlopen(req)
-            if response.code == 200:
-                return url
-        except Exception:
-            pass
-
-async def random_discord_img(message):
-    urls = await logs_find(message, r"http.*:\/\/cdn\.discordapp\.com\/attachments\/.*\/.*\/.*\.(png|jpg)")
-    if not urls:
-        return None
-    for i in range(50):
-        url = choice(urls).strip()
-        try:
-            req = Request(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36'})
-            response = urlopen(req)
-            if response.code == 200:
+            r = httpx.get(url)
+            if r.status_code == 200:
                 return url
         except Exception:
             pass
@@ -321,9 +333,17 @@ async def generate_markov_image(typee, message):
         path = None
         match typee:
             case "impact":
-                url = await random_discord_img(message)
-                if not url:
+                atts = []
+                atts.append(await get_random_att(message, "jpg"))
+                atts.append(await get_random_att(message, "png"))
+
+                if (atts[0] == ""):
+                    atts.pop(0)
+
+                if (atts[0] == ""):
+                    atts.pop(0)
                     return
+
                 gravity = []
                 texts = []
                 texts.append(await generate_markov_text(message, False))
@@ -334,15 +354,25 @@ async def generate_markov_image(typee, message):
                 for text in texts:
                     if not text:
                         return
-                path = await gen_impact(typee="link", inputt=url, texts=texts, gravity=gravity)
+                path = await gen_impact(typee="path", inputt=choice(atts), texts=texts, gravity=gravity)
             case "lobster":
-                url = await random_discord_img(message)
-                if not url:
+                atts = []
+                atts.append(await get_random_att(message, "jpg"))
+                atts.append(await get_random_att(message, "png"))
+
+                if (atts[0] == ""):
+                    atts.pop(0)
+
+                if (atts[0] == ""):
+                    atts.pop(0)
                     return
+
                 text = await generate_markov_text(message, False)
+
                 if not text:
                     return
-                path = await gen_lobster(typee="link", inputt=url, text=text)
+
+                path = await gen_lobster(typee="path", inputt=choice(atts), text=text)
             case "egh":
                 path = await gen_egh()
             case "7pul":
@@ -355,8 +385,6 @@ async def generate_markov_image(typee, message):
 async def timer_decrement():
     for key, item in client.markov_timeout.items():
         client.markov_timeout[key] = max(client.markov_timeout[key] - 1, 0)
-    for key, item in client.user_markov_timeout.items():
-        client.user_markov_timeout[key] = max(client.user_markov_timeout[key] - 1, 0)
 
 @tasks.loop(seconds=30)
 async def custom_status():
@@ -368,9 +396,6 @@ async def custom_status():
 @client.event
 async def on_ready():
     client.markov_timeout = {}
-    client.user_markov_timeout = {}
-    client.user_penalty_counter = {}
-    client.cached_models = {}
 
     logging.info(f'Starting timer decrement task...')
     timer_decrement.start()
@@ -387,20 +412,9 @@ async def on_message(message):
 
     global cfg
 
-    try:
-        await log_message(message)
-    except Exception:
-        log_error("markov error")
+    can_log = False
 
-    if client.user.mentioned_in(message):     
-        if get_timeout_user(message.author.id) > 0:
-            client.user_penalty_counter[message.author.id] = client.user_penalty_counter.get(message.author.id, 0) + 1
-            if client.user_penalty_counter[message.author.id] == 5:
-                client.user_markov_timeout[message.author.id] = 86400
-                await message.reply("You have been penalized for spamming the bot. Behave yourself next time. (Timeout duration: 1 day)")
-            return
-        client.user_markov_timeout[message.author.id] = 10
-        client.user_penalty_counter[message.author.id] = 0
+    if client.user.mentioned_in(message):
         match message.content.split()[1:]:
             case ["log_history", *args]:
                 if not is_admin(message.author):
@@ -443,12 +457,13 @@ async def on_message(message):
                                     f"\t- allow_private - Allow logging a channel that's considered private. Will generate text using using only private logs and post it only in private channels that have been whitelisted.\n" \
                                     f"\t- allow_common - Allow logging a public channel. Will generate text using only public logs and post it only in public channels that have been whitelisted.\n" \
                                     f"\t- allow_channel - Allow logging a certain channel. Will generate text using only logs from the specific whitelisted channel and post it only there.\n" \
-                                    f"\t- teejay hvh linus damianluck tomscott - Generate text with text gathered from these people/topics.\n" \
+                                    f"\t- teejay hvh ltt damian tomscott gugafoods - Generate text with text gathered from these people/topics.\n" \
                                     f"\t- impact - Generate impact meme-styled images using the text generation.\n" \
                                     f"\t- lobster - Generate oldschool vk subtitled images using the text generation.\n" \
                                     f"\t- egh 7pul - Generate images styled with these topics in mind.\n" \
                                     f"\t- gen - Generate text and prepend input\n" \
-                                    f"\t- imagegen - Get a random image from chat history and post it.\n" \
+                                    f"\t- urlgen - Get a random image from chat history and post it.\n" \
+                                    f"\t- attgen - Get a random file from chat history and post it.\n" \
                                     f"\t- dog capybara cat frog - Random image of the respective animal (unfiltered bing results that were scraped at least a year ago)\n" \
                                     f"Don't input any command to generate server-based text.```\n")
             case ["damian", *args]:
@@ -510,14 +525,26 @@ async def on_message(message):
                 await message.reply(image_link)
             case ["gen", *args]:
                 await automatic_markov_generation(message, automatic=False, prepend=" ".join(args))
+            case ["attgen", *args]:
+                output = await get_random_att(message)
+                if output:
+                    await message.reply(file=discord.File(output))
             case ["urlgen", *args]:
                 output = await random_url(message)
                 if output:
                     await message.reply(output)
             case _:
+                can_log = True
                 await automatic_markov_generation(message, automatic=False)
     else:
+        can_log = True
         await automatic_markov_generation(message, automatic=True)
+
+    if can_log:
+        try:
+            await log_message(message)
+        except Exception:
+            log_error("markov error")
 
 if __name__ == '__main__':
     with open("configs/1.json") as f:
