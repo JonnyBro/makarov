@@ -160,7 +160,7 @@ async def log_message_rapid(message):
                 for attachment in message_log.attachments:
                     if attachment.url.startswith("https://cdn.discordapp.com/"):
                         r = httpx.get(attachment.url)
-                        if len(r.content) <= 1048576:
+                        if len(r.content) <= 2097152:
                             with open(f"internal/{message.guild.id}/{channel_type}_attachment_{time()}_{get_url_file_name(attachment.url)}", "wb") as f:
                                 f.write(r.content)
                     else:
