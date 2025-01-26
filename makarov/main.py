@@ -312,9 +312,14 @@ async def automatic_markov_generation(message, automatic, prepend=None):
         client.markov_timeout[message.guild.id] = cfg["timeout"]
 
     output = ""
+    is_att = False
 
     if not prepend and random() < 0.2:
-        output = await random_url(message)
+        if random() <= 0.5:
+            output = await random_url(message)
+        else:
+            is_att = True
+            output = await get_random_att()
     else:
         output = await generate_markov_text(message, automatic, prepend)
 
@@ -324,9 +329,15 @@ async def automatic_markov_generation(message, automatic, prepend=None):
     async with message.channel.typing():
         await asyncio.sleep(1 + random()*1.25)
         if automatic:
-            await message.channel.send(output, allowed_mentions=discord.AllowedMentions.none())
+            if is_att:
+                await message.channel.send(file=discord.File(output))
+            else:
+                await message.channel.send(output, allowed_mentions=discord.AllowedMentions.none())
         else:
-            await message.reply(output, allowed_mentions=discord.AllowedMentions.none())
+            if is_att:
+                await message.reply(file=discord.File(output))
+            else:
+                await message.reply(output, allowed_mentions=discord.AllowedMentions.none())
 
 async def generate_markov_image(typee, message):
     async with message.channel.typing():
