@@ -319,7 +319,7 @@ async def automatic_markov_generation(message, automatic, prepend=None):
             output = await random_url(message)
         else:
             is_att = True
-            output = await get_random_att()
+            output = await get_random_att(message)
     else:
         output = await generate_markov_text(message, automatic, prepend)
 
