@@ -1,7 +1,8 @@
+node_modules/
+dist/
 *.log
-*.pyc
 makarov/configs/1.json
+makarov/configs/2.json
 *.makarov
 bot_start.sh
 i_*
-makarov/configs/2.json
