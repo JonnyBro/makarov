@@ -1,6 +1,0 @@
-asyncio
-discord.py
-markovify
-Wand
-requests
-httpx
