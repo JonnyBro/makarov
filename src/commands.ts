@@ -12,6 +12,7 @@ import { client } from "./client.js";
 import { applyRemoval, historyRunning, logChannelHistory, type HistoryStats } from "./collector.js";
 import { generateText, hasEnoughFrom, makeMeme, MIN_AUTHOR_SENTENCES, randomFile, randomUrl } from "./content.js";
 import { contextFor, type ChannelContext } from "./context.js";
+import { resolveEmojis } from "./emoji.js";
 import { logError } from "./logger.js";
 import { getSettings, isSettingKey, setSetting, SETTINGS, type SettingKey } from "./settings.js";
 import { forgetAuthor, getChannelType, guildChannels, setChannelType, type ChannelType } from "./storage.js";
@@ -240,7 +241,11 @@ async function gen(i: Interaction) {
 	const target = styleTarget(i);
 	if (!(await checkStyleTarget(i, ctx, target))) return;
 
-	const text = await generateText(ctx, { prefix: i.options.getString("text") ?? undefined, authorId: target?.id });
+	const generated = await generateText(ctx, {
+		prefix: i.options.getString("text") ?? undefined,
+		authorId: target?.id,
+	});
+	const text = generated && i.channel ? resolveEmojis(generated, i.channel) : generated;
 	if (!text) return void (await i.editReply("I have nothing to say yet."));
 	await i.editReply({ content: target ? `**${target.name}**: ${text}` : text, ...noMentions });
 }

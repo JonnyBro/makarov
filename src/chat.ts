@@ -4,6 +4,7 @@ import { historyRunning } from "./collector.js";
 import { generateText, hasEnoughFrom, quiet, randomMedia, type Payload } from "./content.js";
 import type { ChannelContext } from "./context.js";
 import { tokenize } from "./markov.js";
+import { resolveEmojis } from "./emoji.js";
 import { getSettings } from "./settings.js";
 import { signature } from "./text.js";
 
@@ -72,6 +73,12 @@ function typingDelay(text: string) {
 }
 
 async function send(message: Message<true>, payload: Payload, asReply: boolean) {
+	const original = payload.content;
+	if (original) {
+		const content = resolveEmojis(original, message.channel);
+		if (!content && !payload.files) return;
+		payload = { ...payload, content };
+	}
 	await message.channel.sendTyping().catch(() => {});
 	await sleep(typingDelay(payload.content ?? ""));
 	const sent = asReply ? await message.reply(payload) : await message.channel.send(payload);
@@ -81,8 +88,9 @@ async function send(message: Message<true>, payload: Payload, asReply: boolean) 
 	state.lastBotMessage = sent.id;
 	state.lastBotAt = Date.now();
 	state.answered = false;
-	if (payload.content) {
-		state.recent.push(signature(payload.content));
+	// The generator compares its own phrases, so the text before emoji resolution is remembered
+	if (original) {
+		state.recent.push(signature(original));
 		if (state.recent.length > RECENT_PHRASES) state.recent.shift();
 	}
 }

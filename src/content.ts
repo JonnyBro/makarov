@@ -2,6 +2,7 @@ import { AttachmentBuilder, type MessageCreateOptions } from "discord.js";
 import { client } from "./client.js";
 import type { ChannelContext } from "./context.js";
 import { imagePath } from "./db.js";
+import { stripEmojis } from "./emoji.js";
 import { genImpact, genLobster } from "./images.js";
 import { logError } from "./logger.js";
 import { Corpus, getCorpus, type GenerateOptions } from "./markov.js";
@@ -134,17 +135,18 @@ export async function makeMeme(
 ): Promise<Buffer | null> {
 	const image = randomImage(ctx);
 	if (!image) return null;
+	const caption = async () => stripEmojis((await generateText(ctx, { context, authorId })) ?? "") || null;
 
 	if (kind === "lobster") {
-		const text = await generateText(ctx, { context, authorId });
+		const text = await caption();
 		return text ? genLobster(image, text) : null;
 	}
 
-	const top = await generateText(ctx, { context, authorId });
+	const top = await caption();
 	if (!top) return null;
 	const captions: { text: string; gravity: "north" | "south" }[] = [{ text: top, gravity: "north" }];
 	if (Math.random() > 0.5) {
-		const bottom = await generateText(ctx, { context, authorId });
+		const bottom = await caption();
 		if (bottom) captions.push({ text: bottom, gravity: "south" });
 	}
 	return genImpact(image, captions);
