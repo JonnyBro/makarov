@@ -1,6 +1,7 @@
-import type { Collection, GuildTextBasedChannel, Message } from "discord.js";
+import { MessageReferenceType, type Collection, type GuildTextBasedChannel, type Message } from "discord.js";
 import { cfg, client } from "./client.js";
 import type { ChannelContext } from "./context.js";
+import { REPLY_WINDOW_MS } from "./db.js";
 import { invalidateCorpus } from "./markov.js";
 import { releaseImages, saveAttachment } from "./media.js";
 import {
@@ -19,6 +20,35 @@ const QUOTA_BYTES = (cfg.image_quota_mb ?? 500) * 1024 * 1024;
 // Guilds where log_history is running: random replies are paused there and a second run won't start
 export const historyRunning = new Set<string>();
 
+interface Previous {
+	id: string;
+	authorId: string;
+	at: number;
+	bot: boolean;
+}
+
+const lastInChannel = new Map<string, Previous>();
+
+function previousOf(message: Message): Previous {
+	return { id: message.id, authorId: message.author.id, at: message.createdTimestamp, bot: message.author.bot };
+}
+
+// The message this one answers: an explicit reply, otherwise the previous message if someone else sent it
+// shortly before. A bot message in between breaks the chain: an answer to the bot isn't an answer to a person.
+function replyTarget(message: Message, previous: Previous | undefined): string | null {
+	if (message.reference?.messageId && message.reference.type === MessageReferenceType.Default)
+		return message.reference.messageId;
+	if (!previous || previous.bot || previous.authorId === message.author.id) return null;
+	return message.createdTimestamp - previous.at <= REPLY_WINDOW_MS ? previous.id : null;
+}
+
+// Must see every message of a channel (bots included) before it is stored; returns what it answers
+export function trackChannelMessage(message: Message): string | null {
+	const target = replyTarget(message, lastInChannel.get(message.channelId));
+	lastInChannel.set(message.channelId, previousOf(message));
+	return target;
+}
+
 // Sentences are separated by newlines, punctuation stays at the end of the sentence
 export function toSentences(text: string) {
 	return text
@@ -29,7 +59,12 @@ export function toSentences(text: string) {
 }
 
 // Returns the number of saved attachments, or -1 if the message wasn't stored (already known or empty)
-export async function storeMessage(message: Message<true>, ctx: ChannelContext, text: string): Promise<number> {
+export async function storeMessage(
+	message: Message<true>,
+	ctx: ChannelContext,
+	text: string,
+	replyTo: string | null,
+): Promise<number> {
 	if (messageExists(message.id)) return -1;
 	const content = toSentences(text);
 	if (!content && !message.attachments.size) return -1;
@@ -42,6 +77,7 @@ export async function storeMessage(message: Message<true>, ctx: ChannelContext, 
 		authorId: message.author.id,
 		createdAt: message.createdTimestamp,
 		nsfw: ctx.nsfw,
+		replyTo,
 	};
 	// Empty content is stored too: attachments are later deleted by message_id
 	if (!insertMessage(meta, content)) return -1;
@@ -63,9 +99,12 @@ export interface HistoryStats {
 const isOlderOrSame = (a: string, b: string) => BigInt(a) <= BigInt(b);
 
 async function storeBatch(batch: Collection<string, Message<true>>, ctx: ChannelContext, stats: HistoryStats) {
-	for (const msg of batch.values()) {
+	// Newest first, so the previous message of messages[i] is messages[i + 1]
+	const messages = [...batch.values()];
+	for (const [i, msg] of messages.entries()) {
 		if (msg.author.id === client.user!.id || msg.author.bot) continue;
-		const attachments = await storeMessage(msg, ctx, msg.cleanContent);
+		const previous = messages[i + 1] ? previousOf(messages[i + 1]) : undefined;
+		const attachments = await storeMessage(msg, ctx, msg.cleanContent, replyTarget(msg, previous));
 		if (attachments < 0) continue;
 		stats.messages++;
 		stats.attachments += attachments;

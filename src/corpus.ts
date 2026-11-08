@@ -1,22 +1,16 @@
 // The corpus is flat arrays of token ids, sentences are wrapped in BEGIN/END.
 // The next word is a random occurrence of the context in the corpus: this automatically
 // weights by frequency, and the same index works for generating both forwards and backwards.
+import { FUNCTION_WORDS, isTopicWord, normalize, signature, stem, tokenize } from "./text.js";
+
 const BEGIN = 0;
 const END = 1;
 const PAIR = 2 ** 26;
 const MAX_TOKENS = 50;
 const URL_ONLY = /^https?:\/\/\S+$/;
-const EDGE_PUNCT = /^[\p{P}\p{S}]+|[\p{P}\p{S}]+$/gu;
-const HAS_LETTER = /\p{L}/u;
+const DANGLING = /[,:;—–-]$/;
 
-export function normalize(token: string): string {
-	const lower = token.toLowerCase().replaceAll("ё", "е");
-	return lower.replace(EDGE_PUNCT, "") || lower;
-}
-
-export function tokenize(text: string): string[] {
-	return text.trim().split(/\s+/).filter(Boolean);
-}
+export { normalize, tokenize } from "./text.js";
 
 function randInt(n: number) {
 	return Math.floor(Math.random() * n);
@@ -139,7 +133,7 @@ interface Token {
 }
 
 export interface GenerateOptions {
-	// Normalized keywords the phrase is built around
+	// Stems of keywords the phrase is built around (any word form of a stem counts)
 	seeds?: string[];
 	// Beginning of the phrase to continue (as typed by the user)
 	prefix?: string;
@@ -148,10 +142,14 @@ export interface GenerateOptions {
 	// Share of the phrase that may be copied verbatim from a single message
 	maxOverlap?: number;
 	candidates?: number;
+	// Signatures (see text.ts) of phrases that must not be repeated
+	avoid?: Set<string>;
 }
 
 export interface CorpusState {
 	keyStr: string[];
+	stemStr: string[];
+	keyStem: Int32Array;
 	surfStr: string[];
 	freq: Int32Array;
 	keys: Int32Array;
@@ -172,6 +170,12 @@ export class Corpus {
 	private keys = new IntList();
 	private surfs = new IntList();
 	private freq: number[] = [0, 0];
+	// Word forms are kept apart in the chain (otherwise agreement breaks: "мой кота"),
+	// stems only group them for keyword matching
+	private stemOf: number[] = [0, 1];
+	private stemStr: string[] = ["\u0002BEGIN", "\u0002END"];
+	private stemIds: Map<string, number> | null = new Map();
+	private stemGroups: Map<number, number[]> | null = null;
 	private uni = new OccurrenceIndex();
 	private bi = new OccurrenceIndex();
 	// Normalized corpus text for the verbatim copy check: "\n k1 k2 k3 \n k1 ... \n"
@@ -188,8 +192,39 @@ export class Corpus {
 			this.keyIds.set(key, id);
 			this.keyStr.push(key);
 			this.freq.push(0);
+			const sid = this.stemId(stem(key));
+			this.stemOf.push(sid);
+			this.stemGroups?.get(sid)?.push(id) ?? this.stemGroups?.set(sid, [id]);
 		}
 		return id;
+	}
+
+	private stemId(value: string): number {
+		this.stemIds ??= new Map(this.stemStr.map((s, i) => [s, i]));
+		let id = this.stemIds.get(value);
+		if (id === undefined) {
+			id = this.stemStr.length;
+			this.stemIds.set(value, id);
+			this.stemStr.push(value);
+		}
+		return id;
+	}
+
+	private groups(): Map<number, number[]> {
+		if (!this.stemGroups) {
+			this.stemGroups = new Map();
+			for (let id = 2; id < this.stemOf.length; id++) {
+				const sid = this.stemOf[id];
+				const group = this.stemGroups.get(sid);
+				if (group) group.push(id);
+				else this.stemGroups.set(sid, [id]);
+			}
+		}
+		return this.stemGroups;
+	}
+
+	private stemFrequency(sid: number): number {
+		return (this.groups().get(sid) ?? []).reduce((sum, id) => sum + this.freq[id], 0);
 	}
 
 	private surfId(surface: string): number {
@@ -264,6 +299,8 @@ export class Corpus {
 	toState(): CorpusState {
 		return {
 			keyStr: this.keyStr,
+			stemStr: this.stemStr,
+			keyStem: Int32Array.from(this.stemOf),
 			surfStr: this.surfStr,
 			freq: Int32Array.from(this.freq),
 			keys: this.keys.data.slice(0, this.keys.length),
@@ -277,7 +314,14 @@ export class Corpus {
 	}
 
 	static transferList(state: CorpusState): ArrayBuffer[] {
-		const arrays = [state.freq, state.keys, state.surfs, ...Object.values(state.uni), ...Object.values(state.bi)];
+		const arrays = [
+			state.freq,
+			state.keyStem,
+			state.keys,
+			state.surfs,
+			...Object.values(state.uni),
+			...Object.values(state.bi),
+		];
 		return [...new Set(arrays.map(a => a.buffer as ArrayBuffer))];
 	}
 
@@ -285,6 +329,9 @@ export class Corpus {
 		const corpus = new Corpus();
 		corpus.keyStr = state.keyStr;
 		corpus.keyIds = new Map(state.keyStr.map((k, i) => [k, i]));
+		corpus.stemStr = state.stemStr;
+		corpus.stemOf = Array.from(state.keyStem);
+		corpus.stemIds = null;
 		corpus.surfStr = state.surfStr;
 		corpus.surfIds = null;
 		corpus.freq = Array.from(state.freq);
@@ -304,17 +351,38 @@ export class Corpus {
 		return id === undefined ? 0 : this.freq[id];
 	}
 
-	// Keywords of a message: its rarest words that occur in the corpus at least twice
+	// Keywords of a message as stems: its rarest words (counting all word forms) seen in the corpus at least twice
 	pickKeywords(text: string, max = 3): string[] {
 		const stopFreq = Math.max(this.tokens * 0.003, 5);
-		const keys = new Set(tokenize(text).map(normalize));
-		return [...keys]
-			.filter(k => k.length >= 3 && HAS_LETTER.test(k))
-			.map(k => ({ k, f: this.frequency(k) }))
+		this.stemIds ??= new Map(this.stemStr.map((s, i) => [s, i]));
+		const sids = new Set<number>();
+		for (const token of tokenize(text)) {
+			const key = normalize(token);
+			if (key.length < 3 || !isTopicWord(key)) continue;
+			const sid = this.stemIds.get(stem(key));
+			if (sid !== undefined) sids.add(sid);
+		}
+		return [...sids]
+			.map(sid => ({ sid, f: this.stemFrequency(sid) }))
 			.filter(({ f }) => f >= 2 && f <= stopFreq)
 			.sort((a, b) => a.f - b.f)
 			.slice(0, max)
-			.map(({ k }) => k);
+			.map(({ sid }) => this.stemStr[sid]);
+	}
+
+	// Word forms of the given stems that occur in the corpus, one group per stem
+	private seedGroups(stems: string[]): number[][] {
+		this.stemIds ??= new Map(this.stemStr.map((s, i) => [s, i]));
+		return stems
+			.map(s => this.stemIds!.get(s))
+			.map(sid => (sid === undefined ? [] : (this.groups().get(sid) ?? []).filter(id => this.freq[id] > 0)))
+			.filter(group => group.length);
+	}
+
+	private pickSeed(group: number[]): number {
+		let r = Math.random() * group.reduce((sum, id) => sum + this.freq[id], 0);
+		for (const id of group) if ((r -= this.freq[id]) < 0) return id;
+		return group[group.length - 1];
 	}
 
 	private token(pos: number): Token {
@@ -388,50 +456,60 @@ export class Corpus {
 		return false;
 	}
 
-	private score(tokens: Token[], seeds: Set<number>): number {
+	private score(tokens: Token[], seeds: number[][]): number {
 		const n = tokens.length;
+		if (!n) return 0;
 		const distinct = new Set(tokens.map(t => t.key));
 		let s = Math.random() * 1.5;
 		if (n < 2) s -= 4;
 		else if (n < 4) s -= 1;
 		if (n > 25) s -= (n - 25) * 0.3;
 		s -= (1 - distinct.size / n) * 6;
-		for (const seed of seeds) if (distinct.has(seed)) s += 3;
+		for (const group of seeds) if (group.some(id => distinct.has(id))) s += 3;
+
+		// Phrases that look cut off: "пошли в", "ну и", "короче," or an unclosed quote
+		const last = tokens[n - 1];
+		if (FUNCTION_WORDS.has(this.keyStr[last.key])) s -= 3;
+		if (DANGLING.test(last.surface)) s -= 1.5;
+		const text = tokens.map(t => t.surface).join(" ");
+		if ((text.match(/"/g)?.length ?? 0) % 2) s -= 1.5;
+		if ((text.match(/«/g)?.length ?? 0) !== (text.match(/»/g)?.length ?? 0)) s -= 1.5;
 		return s;
 	}
 
 	generate(opts: GenerateOptions = {}): string | null {
-		const { coherence = 0.85, maxOverlap = 0.7, candidates = 24 } = opts;
-		const seedIds = (opts.seeds ?? [])
-			.map(s => this.keyIds.get(s))
-			.filter((id): id is number => id !== undefined && this.freq[id] > 0);
-		const seedSet = new Set(seedIds);
+		const { coherence = 0.85, maxOverlap = 0.7, candidates = 24, avoid } = opts;
+		const seeds = this.seedGroups(opts.seeds ?? []);
 		const prefixWords = opts.prefix ? tokenize(opts.prefix) : [];
 		const prefix: Token[] = prefixWords.map(w => ({ key: this.keyIds.get(normalize(w)) ?? -1, surface: w }));
 
 		let fallback: Token[] | null = null;
 		let copyFallback: Token[] | null = null;
+		let repeatFallback: Token[] | null = null;
 		let copies = 0;
 		// If everything was a copy at high coherence, the second pass "jumps" between messages more often
 		for (const c of [coherence, Math.min(coherence, 0.4)]) {
 			const pool: { tokens: Token[]; score: number }[] = [];
 			for (let i = 0; i < candidates; i++) {
-				const seed = seedIds.length && Math.random() < 0.8 ? seedIds[randInt(seedIds.length)] : null;
+				const seed = seeds.length && Math.random() < 0.8 ? this.pickSeed(seeds[randInt(seeds.length)]) : null;
 				const tokens = this.candidate(seed, prefix, c);
-				if (tokens && (tokens.length || prefix.length))
-					pool.push({ tokens, score: this.score(tokens, seedSet) });
+				if (tokens && (tokens.length || prefix.length)) pool.push({ tokens, score: this.score(tokens, seeds) });
 			}
 			pool.sort((a, b) => b.score - a.score);
 
 			for (const { tokens } of pool) {
 				const keys = tokens.map(t => this.keyStr[t.key]);
+				if (avoid?.has(signature(this.render(prefix, tokens)))) {
+					repeatFallback ??= tokens;
+					continue;
+				}
 				if (!this.overlapsTooMuch(keys, maxOverlap)) return this.render(prefix, tokens);
 				if (!fallback && !this.isExactCopy(keys)) fallback = tokens;
 				if (Math.random() < 1 / ++copies) copyFallback = tokens;
 			}
 		}
 		// A small corpus (new channel) has nothing to mix, so repeating a message is better than staying silent
-		const best = fallback ?? copyFallback;
+		const best = fallback ?? copyFallback ?? repeatFallback;
 		return best ? this.render(prefix, best) : null;
 	}
 

@@ -5,9 +5,65 @@ import { generateText, hasEnoughFrom, quiet, randomMedia, type Payload } from ".
 import type { ChannelContext } from "./context.js";
 import { tokenize } from "./markov.js";
 import { getSettings } from "./settings.js";
+import { signature } from "./text.js";
 
 const NAME_CHANCE_MULTIPLIER = 3;
+// Someone talked to the bot this recently: it's a conversation, keep it going
+const CONVERSATION_MS = 3 * 60 * 1000;
+const CONVERSATION_MULTIPLIER = 2;
+const MIN_IGNORED_MULTIPLIER = 0.1;
+// Being ignored is forgotten after this long, so a quiet chat doesn't silence the bot forever
+const IGNORE_FORGET_MS = 60 * 60 * 1000;
+const RECENT_PHRASES = 20;
+
 const timeoutUntil = new Map<string, number>();
+
+interface Engagement {
+	lastBotMessage: string | null;
+	lastBotAt: number;
+	// Someone answered, pinged or reacted after the bot's last message
+	answered: boolean;
+	// Bot messages in a row that nobody reacted to
+	ignoredStreak: number;
+	lastEngagedAt: number;
+	recent: string[];
+}
+
+const engagement = new Map<string, Engagement>();
+
+function stateOf(channelId: string): Engagement {
+	let state = engagement.get(channelId);
+	if (!state) {
+		state = { lastBotMessage: null, lastBotAt: 0, answered: false, ignoredStreak: 0, lastEngagedAt: 0, recent: [] };
+		engagement.set(channelId, state);
+	}
+	return state;
+}
+
+export function noteEngagement(channelId: string) {
+	const state = stateOf(channelId);
+	state.answered = true;
+	state.ignoredStreak = 0;
+	state.lastEngagedAt = Date.now();
+}
+
+export function isLastBotMessage(channelId: string, messageId: string) {
+	return engagement.get(channelId)?.lastBotMessage === messageId;
+}
+
+// Ignored twice in a row: half the chance, three times: a quarter, and so on.
+// Right after someone talked to the bot the chance is doubled.
+function chanceMultiplier(channelId: string) {
+	const state = stateOf(channelId);
+	if (Date.now() - state.lastBotAt > IGNORE_FORGET_MS) state.ignoredStreak = 0;
+	let multiplier = Math.max(MIN_IGNORED_MULTIPLIER, 0.5 ** Math.max(0, state.ignoredStreak - 1));
+	if (Date.now() - state.lastEngagedAt < CONVERSATION_MS) multiplier *= CONVERSATION_MULTIPLIER;
+	return multiplier;
+}
+
+function avoidSet(channelId: string) {
+	return new Set(stateOf(channelId).recent);
+}
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
@@ -18,8 +74,17 @@ function typingDelay(text: string) {
 async function send(message: Message<true>, payload: Payload, asReply: boolean) {
 	await message.channel.sendTyping().catch(() => {});
 	await sleep(typingDelay(payload.content ?? ""));
-	if (asReply) await message.reply(payload);
-	else await message.channel.send(payload);
+	const sent = asReply ? await message.reply(payload) : await message.channel.send(payload);
+
+	const state = stateOf(message.channelId);
+	if (state.lastBotMessage && !state.answered) state.ignoredStreak++;
+	state.lastBotMessage = sent.id;
+	state.lastBotAt = Date.now();
+	state.answered = false;
+	if (payload.content) {
+		state.recent.push(signature(payload.content));
+		if (state.recent.length > RECENT_PHRASES) state.recent.shift();
+	}
 }
 
 // Message text without the bot's ping if the message is addressed to the bot (ping or reply to it), otherwise null
@@ -49,7 +114,8 @@ export async function autoReply(message: Message<true>, ctx: ChannelContext) {
 	if (historyRunning.has(ctx.guildId)) return;
 	const settings = getSettings(ctx.guildId);
 	if ((timeoutUntil.get(ctx.guildId) ?? 0) > Date.now()) return;
-	const chance = mentionsBotName(message) ? settings.chance * NAME_CHANCE_MULTIPLIER : settings.chance;
+	let chance = settings.chance * chanceMultiplier(ctx.channelId);
+	if (mentionsBotName(message)) chance *= NAME_CHANCE_MULTIPLIER;
 	if (Math.random() * 100 >= chance) return;
 	timeoutUntil.set(ctx.guildId, Date.now() + settings.timeout * 1000);
 
@@ -58,17 +124,28 @@ export async function autoReply(message: Message<true>, ctx: ChannelContext) {
 		if (media) return send(message, media, false);
 	}
 
-	const authorId = await mirrorTarget(message, ctx);
-	const text = await generateText(ctx, { context: message.cleanContent, allowSecondSentence: true, authorId });
+	const text = await generateText(ctx, {
+		context: message.cleanContent,
+		allowSecondSentence: true,
+		authorId: await mirrorTarget(message, ctx),
+		dialogue: true,
+		avoid: avoidSet(ctx.channelId),
+	});
 	if (text) await send(message, { content: text, ...quiet }, false);
 }
 
 export async function directReply(message: Message<true>, ctx: ChannelContext, context: string) {
+	noteEngagement(ctx.channelId);
 	if (!tokenize(context).length && Math.random() * 100 < getSettings(ctx.guildId).mediaChance) {
 		const media = await randomMedia(ctx);
 		if (media) return send(message, media, true);
 	}
-	const authorId = await mirrorTarget(message, ctx);
-	const text = await generateText(ctx, { context, allowSecondSentence: true, authorId });
+	const text = await generateText(ctx, {
+		context,
+		allowSecondSentence: true,
+		authorId: await mirrorTarget(message, ctx),
+		dialogue: true,
+		avoid: avoidSet(ctx.channelId),
+	});
 	if (text) await send(message, { content: text, ...quiet }, true);
 }

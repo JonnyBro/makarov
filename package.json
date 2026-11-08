@@ -12,8 +12,7 @@
 		"admin": "node dist/admin.js",
 		"dev": "tsx src/index.js",
 		"lint": "eslint src",
-		"format": "prettier --write src",
-		"migrate": "node dist/migrate.js"
+		"format": "prettier --write src"
 	},
 	"engines": {
 		"node": ">=20.11"

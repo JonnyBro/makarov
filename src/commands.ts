@@ -227,7 +227,7 @@ async function checkStyleTarget(i: Interaction, ctx: ChannelContext, target: Sty
 	await i.editReply({
 		content:
 			`I don't know enough messages from **${target.name}** in this chat yet ` +
-			`(need at least ${MIN_AUTHOR_SENTENCES} sentences). Messages from the old text logs have no author.`,
+			`(need at least ${MIN_AUTHOR_SENTENCES} sentences).`,
 		...noMentions,
 	});
 	return false;

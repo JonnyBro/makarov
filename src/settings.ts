@@ -8,6 +8,7 @@ export interface GuildSettings {
 	maxOverlap: number;
 	mediaChance: number;
 	mirror: number;
+	dialogue: number;
 }
 
 export type SettingKey = keyof GuildSettings;
@@ -19,6 +20,7 @@ export const SETTINGS: Record<SettingKey, { min: number; max: number; descriptio
 	maxOverlap: { min: 0.1, max: 1, description: "max share of a reply copied from a single message" },
 	mediaChance: { min: 0, max: 100, description: "% of random replies that are links or files instead of text" },
 	mirror: { min: 0, max: 100, description: "% of replies made only from the messages of the person I'm answering" },
+	dialogue: { min: 0, max: 100, description: "% of replies built from what people answered to similar messages" },
 };
 
 let defaults: GuildSettings;
@@ -32,6 +34,7 @@ export function initSettings(cfg: Config) {
 		maxOverlap: cfg.max_overlap ?? 0.7,
 		mediaChance: cfg.media_chance ?? 10,
 		mirror: cfg.mirror ?? 0,
+		dialogue: cfg.dialogue ?? 60,
 	};
 }
 

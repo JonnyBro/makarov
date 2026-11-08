@@ -1,4 +1,5 @@
 import { db } from "./db.js";
+import { searchStems } from "./text.js";
 
 export const CHANNEL_TYPES = ["channel", "common", "private"] as const;
 export type ChannelType = (typeof CHANNEL_TYPES)[number];
@@ -21,6 +22,8 @@ export interface MessageMeta {
 	authorId: string | null;
 	createdAt: number | null;
 	nsfw: boolean;
+	// Id of the message this one answers (an explicit reply or the previous message from someone else)
+	replyTo: string | null;
 }
 
 export interface AttachmentRow {
@@ -56,9 +59,26 @@ const q = {
 
 	messageExists: db.prepare<[string], number>("SELECT 1 FROM messages WHERE message_id = ?").pluck(),
 	insertMessage: db.prepare(
-		`INSERT OR IGNORE INTO messages (message_id, guild_id, scope, channel_id, author_id, created_at, content)
-		VALUES (@messageId, @guildId, @scope, @channelId, @authorId, @createdAt, @content)`,
+		`INSERT OR IGNORE INTO messages
+			(message_id, guild_id, scope, channel_id, author_id, created_at, content, reply_to)
+		VALUES (@messageId, @guildId, @scope, @channelId, @authorId, @createdAt, @content, @replyTo)`,
 	),
+	insertStems: db.prepare("INSERT INTO messages_fts (rowid, stems) VALUES (?, ?)"),
+	deleteStems: db.prepare("DELETE FROM messages_fts WHERE rowid = ?"),
+	forgetStems: db.prepare(
+		"DELETE FROM messages_fts WHERE rowid IN (SELECT id FROM messages WHERE guild_id = ? AND author_id = ?)",
+	),
+	// What people answered to messages similar to the query (bm25 ranks by shared rare words)
+	replies: db
+		.prepare<{ query: string; guildId: string; scope: string; authorId: string | null; limit: number }, string>(
+			`SELECT r.content FROM messages_fts
+			JOIN messages m ON m.id = messages_fts.rowid
+			JOIN messages r ON r.reply_to = m.message_id
+			WHERE messages_fts MATCH @query AND m.guild_id = @guildId AND m.scope = @scope AND r.scope = @scope
+				AND (@authorId IS NULL OR r.author_id = @authorId) AND r.content <> ''
+			ORDER BY bm25(messages_fts) LIMIT @limit`,
+		)
+		.pluck(),
 	insertLink: db.prepare(
 		`INSERT INTO links (message_id, guild_id, scope, author_id, nsfw, url)
 		VALUES (@messageId, @guildId, @scope, @authorId, @nsfw, @url)`,
@@ -71,8 +91,8 @@ const q = {
 			@nsfw, @kind, @imageHash, @filename)`,
 	),
 
-	messageScope: db.prepare<[string], { guild_id: string; scope: string; content: string }>(
-		"SELECT guild_id, scope, content FROM messages WHERE message_id = ?",
+	messageScope: db.prepare<[string], { id: number; guild_id: string; scope: string; content: string }>(
+		"SELECT id, guild_id, scope, content FROM messages WHERE message_id = ?",
 	),
 	updateContent: db.prepare("UPDATE messages SET content = ? WHERE message_id = ?"),
 	deleteMessage: db.prepare("DELETE FROM messages WHERE message_id = ?"),
@@ -140,9 +160,17 @@ export function messageExists(messageId: string): boolean {
 	return !!q.messageExists.get(messageId);
 }
 
+function indexStems(rowId: number | bigint, content: string) {
+	const stems = searchStems(content).join(" ");
+	if (stems) q.insertStems.run(rowId, stems);
+}
+
 export function insertMessage(meta: MessageMeta, content: string): boolean {
 	const { nsfw: _nsfw, ...row } = meta;
-	return q.insertMessage.run({ ...row, content }).changes > 0;
+	const result = q.insertMessage.run({ ...row, content });
+	if (!result.changes) return false;
+	indexStems(result.lastInsertRowid, content);
+	return true;
 }
 
 export function insertLink(meta: MessageMeta, url: string) {
@@ -173,6 +201,8 @@ export const updateMessageContent = (messageId: string, content: string) => {
 	const row = q.messageScope.get(messageId);
 	if (!row || row.content === content) return null;
 	q.updateContent.run(content, messageId);
+	q.deleteStems.run(row.id);
+	indexStems(row.id, content);
 	return { guildId: row.guild_id, scope: row.scope };
 };
 
@@ -180,7 +210,10 @@ export const deleteMessages = db.transaction((messageIds: string[]): Removal => 
 	const removal: Removal = { scopes: [], imageHashes: [] };
 	for (const id of messageIds) {
 		const row = q.messageScope.get(id);
-		if (row) removal.scopes.push({ guildId: row.guild_id, scope: row.scope });
+		if (row) {
+			removal.scopes.push({ guildId: row.guild_id, scope: row.scope });
+			q.deleteStems.run(row.id);
+		}
 		removal.imageHashes.push(...q.messageImages.all(id));
 		q.deleteMessage.run(id);
 		q.deleteLinks.run(id);
@@ -192,6 +225,7 @@ export const deleteMessages = db.transaction((messageIds: string[]): Removal => 
 export const forgetAuthor = db.transaction((guildId: string, authorId: string) => {
 	const scopes = q.authorScopes.all(guildId, authorId).map(scope => ({ guildId, scope }));
 	const imageHashes = q.authorImages.all(guildId, authorId);
+	q.forgetStems.run(guildId, authorId);
 	const messages = q.forgetMessages.run(guildId, authorId).changes;
 	q.forgetLinks.run(guildId, authorId);
 	const attachments = q.forgetAttachments.run(guildId, authorId).changes;
@@ -240,4 +274,14 @@ export function setHistoryProgress(channelId: string, progress: HistoryProgress)
 
 export function topScopes(limit: number) {
 	return q.topScopes.all(limit);
+}
+
+const SEARCH_TERM = /^[\p{L}\p{N}]+$/u;
+
+// Replies people gave to messages similar to `text`; with authorId only replies written by that person
+export function findReplies(guildId: string, scope: string, text: string, authorId: string | null, limit = 60) {
+	const terms = searchStems(text).filter(s => SEARCH_TERM.test(s));
+	if (!terms.length) return [];
+	const query = terms.map(t => `"${t}"`).join(" OR ");
+	return q.replies.all({ query, guildId, scope, authorId, limit });
 }

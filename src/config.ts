@@ -19,6 +19,7 @@ export interface Config {
 	coherence?: number;
 	media_chance?: number;
 	mirror?: number;
+	dialogue?: number;
 	image_quota_mb?: number;
 }
 

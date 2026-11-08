@@ -4,15 +4,17 @@ import type { ChannelContext } from "./context.js";
 import { imagePath } from "./db.js";
 import { genImpact, genLobster } from "./images.js";
 import { logError } from "./logger.js";
-import { getCorpus, type GenerateOptions } from "./markov.js";
+import { Corpus, getCorpus, type GenerateOptions } from "./markov.js";
 import { getSettings } from "./settings.js";
-import { deleteAttachmentRow, randomAttachmentRow, randomImageHash, randomLinks } from "./storage.js";
+import { deleteAttachmentRow, findReplies, randomAttachmentRow, randomImageHash, randomLinks } from "./storage.js";
 
 export type Payload = Pick<MessageCreateOptions, "content" | "files" | "allowedMentions">;
 
 export const quiet = { allowedMentions: { parse: [], repliedUser: false } } as const;
 
 const SECOND_SENTENCE_CHANCE = 0.15;
+// Fewer answers than this to similar messages is too little to build a reply from
+const MIN_DIALOGUE_REPLIES = 2;
 // Discord: Unknown Channel / Unknown Message, i.e. the message with the file was deleted
 const GONE_CODES = new Set([10003, 10008]);
 
@@ -24,6 +26,18 @@ export interface TextRequest {
 	allowSecondSentence?: boolean;
 	// Generate only from this person's messages
 	authorId?: string;
+	// Answer the context the way people answered similar messages (see the dialogue setting)
+	dialogue?: boolean;
+	// Signatures of recent bot phrases that shouldn't be repeated
+	avoid?: Set<string>;
+}
+
+// Builds a reply out of what people answered to messages similar to the context. Short answers like "го" or "хз"
+// may come out verbatim: maxOverlap 1 only prefers mixed phrases over exact copies.
+function dialogueReply(ctx: ChannelContext, req: TextRequest, coherence: number): string | null {
+	const replies = findReplies(ctx.guildId, ctx.scope, req.context!, req.authorId ?? null);
+	if (replies.length < MIN_DIALOGUE_REPLIES) return null;
+	return Corpus.fromChunks(replies).generate({ coherence, maxOverlap: 1, avoid: req.avoid });
 }
 
 // With less material than this the bot would just quote the person's messages
@@ -36,11 +50,17 @@ export async function hasEnoughFrom(ctx: ChannelContext, authorId: string) {
 export async function generateText(ctx: ChannelContext, req: TextRequest = {}): Promise<string | null> {
 	const settings = getSettings(ctx.guildId);
 	try {
+		if (req.context && req.dialogue && Math.random() * 100 < settings.dialogue) {
+			const answer = dialogueReply(ctx, req, settings.coherence);
+			if (answer) return answer;
+		}
+
 		const corpus = await getCorpus(ctx.guildId, ctx.scope, req.authorId);
 		const opts: GenerateOptions = {
 			coherence: settings.coherence,
 			maxOverlap: settings.maxOverlap,
 			seeds: req.context ? corpus.pickKeywords(req.context) : undefined,
+			avoid: req.avoid,
 		};
 		const first = corpus.generate({ ...opts, prefix: req.prefix });
 		if (!first || !req.allowSecondSentence || Math.random() >= SECOND_SENTENCE_CHANCE) return first;

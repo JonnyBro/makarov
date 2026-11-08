@@ -1,7 +1,7 @@
 import { ActivityType, MessageFlags } from "discord.js";
-import { autoReply, directReply, getAddress } from "./chat.js";
+import { autoReply, directReply, getAddress, isLastBotMessage, noteEngagement } from "./chat.js";
 import { cfg, client } from "./client.js";
-import { applyRemoval, storeMessage, toSentences } from "./collector.js";
+import { applyRemoval, storeMessage, toSentences, trackChannelMessage } from "./collector.js";
 import { commandData, handleCommand } from "./commands.js";
 import { contextFor } from "./context.js";
 import { logError, logInfo } from "./logger.js";
@@ -35,7 +35,9 @@ client.once("clientReady", async c => {
 });
 
 client.on("messageCreate", async message => {
-	if (!message.inGuild() || message.author.bot) return;
+	if (!message.inGuild()) return;
+	const replyTo = trackChannelMessage(message);
+	if (message.author.bot) return;
 
 	try {
 		const ctx = contextFor(message.channel);
@@ -44,10 +46,10 @@ client.on("messageCreate", async message => {
 		if (address !== null) {
 			await directReply(message, ctx, address);
 			// Messages addressed to the bot are logged without the ping so the bot's name doesn't pollute the corpus
-			await storeMessage(message, ctx, address);
+			await storeMessage(message, ctx, address, replyTo);
 		} else {
 			await autoReply(message, ctx);
-			await storeMessage(message, ctx, message.cleanContent);
+			await storeMessage(message, ctx, message.cleanContent, replyTo);
 		}
 	} catch (e) {
 		logError("error in messageCreate", e);
@@ -75,6 +77,11 @@ client.on("messageUpdate", async (_old, updated) => {
 	} catch (e) {
 		logError("error in messageUpdate", e);
 	}
+});
+
+client.on("messageReactionAdd", (reaction, user) => {
+	if (!user.bot && isLastBotMessage(reaction.message.channelId, reaction.message.id))
+		noteEngagement(reaction.message.channelId);
 });
 
 client.on("messageDelete", message => {
