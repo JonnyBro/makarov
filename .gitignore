@@ -1,8 +1,6 @@
 node_modules/
 dist/
 *.log
-makarov/configs/1.json
-makarov/configs/2.json
-*.makarov
-bot_start.sh
-i_*
+
+config.json
+data/

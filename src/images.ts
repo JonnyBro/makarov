@@ -1,9 +1,10 @@
 import path from "node:path";
 import { createCanvas, GlobalFonts, loadImage, type SKRSContext2D } from "@napi-rs/canvas";
-import { INTERNAL_DIR } from "./config.js";
+import { ASSETS_DIR } from "./config.js";
 
-GlobalFonts.registerFromPath(path.join(INTERNAL_DIR, "impact.ttf"), "MakarovImpact");
-GlobalFonts.registerFromPath(path.join(INTERNAL_DIR, "lobster.ttf"), "MakarovLobster");
+const FONTS_DIR = path.join(ASSETS_DIR, "fonts");
+GlobalFonts.registerFromPath(path.join(FONTS_DIR, "impact.ttf"), "MakarovImpact");
+GlobalFonts.registerFromPath(path.join(FONTS_DIR, "lobster.ttf"), "MakarovLobster");
 
 type Gravity = "north" | "south";
 
@@ -40,7 +41,8 @@ function drawCaption(ctx: SKRSContext2D, text: string, width: number, height: nu
 	let ascent: number;
 	let lineHeight: number;
 
-	// ImageMagick caption переносил текст сам; тут дополнительно уменьшаем шрифт, чтобы подпись не съела всю картинку
+	// ImageMagick caption wrapped the text by itself; here the font is also shrunk
+	// so the caption doesn't cover the whole image
 	for (;;) {
 		ctx.font = `${size}px "${opts.font}"`;
 		lines = wrapLines(ctx, text, maxWidth);

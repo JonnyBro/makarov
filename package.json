@@ -10,19 +10,23 @@
 		"build": "tsc",
 		"start": "node dist/index.js",
 		"admin": "node dist/admin.js",
+		"dev": "tsx src/index.js",
 		"lint": "eslint src",
-		"format": "prettier --write src"
+		"format": "prettier --write src",
+		"migrate": "node dist/migrate.js"
 	},
 	"engines": {
 		"node": ">=20.11"
 	},
 	"dependencies": {
 		"@napi-rs/canvas": "^1.1.0",
+		"better-sqlite3": "^13.0.3",
 		"discord.js": "^14.28.1"
 	},
 	"devDependencies": {
 		"@eslint/js": "^10.0.1",
 		"@stylistic/eslint-plugin": "^5.10.0",
+		"@types/better-sqlite3": "^9.6.0",
 		"@types/node": "^22.0.0",
 		"@typescript-eslint/eslint-plugin": "^8.72.1",
 		"@typescript-eslint/parser": "^8.72.1",
@@ -30,6 +34,7 @@
 		"globals": "^17.14.0",
 		"prettier": "^3.9.10",
 		"prettier-eslint": "^17.1.2",
+		"tsx": "^4.23.15",
 		"typescript": "^6.0.3"
 	}
 }

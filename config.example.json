@@ -1,0 +1,12 @@
+{
+	"token": "your bot token",
+	"custom_status": true,
+	"statuses": ["/help"],
+	"chance": 20,
+	"timeout": 30,
+	"coherence": 0.85,
+	"max_overlap": 0.7,
+	"media_chance": 10,
+	"mirror": 0,
+	"image_quota_mb": 500
+}

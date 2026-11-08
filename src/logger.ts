@@ -12,7 +12,7 @@ export function logError(msg: string, err?: unknown) {
 	try {
 		fs.appendFileSync(logFile, line);
 	} catch {
-		// логгер не должен ронять бота
+		// the logger must never crash the bot
 	}
 }
 

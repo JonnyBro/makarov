@@ -1,221 +1,127 @@
-// Порт markovify (Chain + NewlineText), чтобы генерация на старых логах вела себя так же, как в Python-версии.
-import fs from "node:fs";
+import { Worker } from "node:worker_threads";
+import { Corpus, type CorpusState } from "./corpus.js";
+import { DB_PATH } from "./db.js";
+import { logError } from "./logger.js";
+import { rowsSince } from "./storage.js";
 
-const BEGIN = "___BEGIN__";
-const END = "___END__";
-const SEP = "\u0000";
-const MAX_WALK = 1000;
-// markovify.Text.reject_pat: выкидывает строки с кавычками, скобками и "висящими" апострофами
-const REJECT = /(^')|('$)|\s'|'\s|["()[\]]/;
-
-interface StateEntry {
-	counts: Map<string, number>;
-	words?: string[];
-	cumdist?: number[];
-}
-
-function choiceIndex(cumdist: number[]): number {
-	const r = Math.random() * cumdist[cumdist.length - 1];
-	let lo = 0;
-	let hi = cumdist.length - 1;
-	while (lo < hi) {
-		const mid = (lo + hi) >> 1;
-		if (cumdist[mid] > r) hi = mid;
-		else lo = mid + 1;
-	}
-	return lo;
-}
-
-// Python round() — банковское округление, от него зависит длина проверяемых n-грамм
-function pyRound(x: number): number {
-	const r = Math.round(x);
-	return Math.abs(x % 1) === 0.5 && r % 2 !== 0 ? r - 1 : r;
-}
-
-function shuffle<T>(arr: T[]): T[] {
-	for (let i = arr.length - 1; i > 0; i--) {
-		const j = Math.floor(Math.random() * (i + 1));
-		[arr[i], arr[j]] = [arr[j], arr[i]];
-	}
-	return arr;
-}
-
-class Chain {
-	readonly model = new Map<string, StateEntry>();
-
-	constructor(readonly stateSize: number) {}
-
-	addRun(run: string[]) {
-		const items: string[] = [...Array<string>(this.stateSize).fill(BEGIN), ...run, END];
-		for (let i = 0; i <= run.length; i++) {
-			const state = items.slice(i, i + this.stateSize).join(SEP);
-			const follow = items[i + this.stateSize];
-			let entry = this.model.get(state);
-			if (!entry) {
-				entry = { counts: new Map() };
-				this.model.set(state, entry);
-			}
-			entry.counts.set(follow, (entry.counts.get(follow) ?? 0) + 1);
-			entry.words = undefined;
-			entry.cumdist = undefined;
-		}
-	}
-
-	private move(state: string): string | null {
-		const entry = this.model.get(state);
-		if (!entry) return null;
-		if (!entry.words || !entry.cumdist) {
-			entry.words = [];
-			entry.cumdist = [];
-			let acc = 0;
-			for (const [word, count] of entry.counts) {
-				acc += count;
-				entry.words.push(word);
-				entry.cumdist.push(acc);
-			}
-		}
-		return entry.words[choiceIndex(entry.cumdist)];
-	}
-
-	walk(initState?: string[]): string[] | null {
-		let state = initState ?? Array<string>(this.stateSize).fill(BEGIN);
-		const out: string[] = [];
-		while (out.length < MAX_WALK) {
-			const next = this.move(state.join(SEP));
-			if (next === null) return null;
-			if (next === END) break;
-			out.push(next);
-			state = [...state.slice(1), next];
-		}
-		return out;
-	}
-}
-
-export interface SentenceOptions {
-	maxOverlapRatio?: number;
-	maxOverlapTotal?: number;
-	testOutput?: boolean;
-	tries?: number;
-}
-
-export class TextModel {
-	readonly chain: Chain;
-	private rejoined = "";
-
-	constructor(readonly stateSize: number) {
-		this.chain = new Chain(stateSize);
-	}
-
-	addText(text: string) {
-		const accepted: string[] = [];
-		for (const sentence of text.split(/\s*\n\s*/)) {
-			if (!sentence.trim() || REJECT.test(sentence)) continue;
-			const words = sentence.split(/\s+/);
-			this.chain.addRun(words);
-			accepted.push(words.join(" "));
-		}
-		if (!accepted.length) return;
-		this.rejoined = this.rejoined ? `${this.rejoined}\n${accepted.join("\n")}` : accepted.join("\n");
-	}
-
-	private testSentenceOutput(words: string[], maxOverlapRatio: number, maxOverlapTotal: number): boolean {
-		const overlapMax = Math.min(maxOverlapTotal, pyRound(maxOverlapRatio * words.length));
-		const overlapOver = overlapMax + 1;
-		const gramCount = Math.max(words.length - overlapMax, 1);
-		for (let i = 0; i < gramCount; i++)
-			if (this.rejoined.includes(words.slice(i, i + overlapOver).join(" "))) return false;
-
-		return true;
-	}
-
-	makeSentence(initState?: string[], opts: SentenceOptions = {}): string | null {
-		const { maxOverlapRatio = 0.7, maxOverlapTotal = 15, testOutput = true, tries = 10 } = opts;
-		const prefix = initState?.filter(w => w !== BEGIN) ?? [];
-
-		for (let i = 0; i < (testOutput ? tries : 1); i++) {
-			const walked = this.chain.walk(initState);
-			if (walked === null) return null;
-			const words = [...prefix, ...walked];
-			if (!testOutput || this.testSentenceOutput(words, maxOverlapRatio, maxOverlapTotal)) return words.join(" ");
-		}
-		return null;
-	}
-
-	makeSentenceWithStart(beginning: string, strict = true, opts: SentenceOptions = {}): string | null {
-		const split = beginning.trim().split(/\s+/).filter(Boolean);
-		const wordCount = split.length;
-		let initStates: string[][];
-
-		if (wordCount === this.stateSize) initStates = [split];
-		else if (wordCount > 0 && wordCount < this.stateSize)
-			if (strict) initStates = [[...Array<string>(this.stateSize - wordCount).fill(BEGIN), ...split]];
-			else {
-				initStates = [];
-				for (const key of this.chain.model.keys()) {
-					const state = key.split(SEP);
-					const meaningful = state.filter(w => w !== BEGIN).slice(0, wordCount);
-					if (meaningful.length === wordCount && meaningful.every((w, i) => w === split[i]))
-						initStates.push(state);
-				}
-				shuffle(initStates);
-			}
-		else return null;
-
-		for (const state of initStates) {
-			const out = this.makeSentence(state, opts);
-			if (out !== null) return out;
-		}
-		return null;
-	}
-}
+export { Corpus, normalize, tokenize, type GenerateOptions } from "./corpus.js";
 
 interface CacheEntry {
-	model: TextModel;
-	size: number;
-	mtimeMs: number;
-	endsWithNewline: boolean;
+	corpus: Corpus;
+	lastId: number;
+	staleSince: number | null;
 }
 
-const CACHE_LIMIT = 8;
-const cache = new Map<string, CacheEntry>();
-
-function decode(buf: Buffer): string {
-	// Python читал с errors="ignore" — битые байты просто выкидываем
-	return buf.toString("utf-8").replaceAll("\uFFFD", "");
+interface Built {
+	corpus: Corpus;
+	lastId: number;
 }
 
-// Логи только дописываются в конец, поэтому модель не строится заново на каждый запрос,
-// а дочитывает новые строки. Полная пересборка — при смене randomness или если файл изменился иначе.
-export function getModel(file: string, stateSize: number): TextModel {
-	const stat = fs.statSync(file);
-	let entry = cache.get(file);
+// Per-author corpora are small and live in their own cache so they don't evict big channel corpora
+const caches = {
+	scope: { map: new Map<string, CacheEntry>(), limit: 8 },
+	author: { map: new Map<string, CacheEntry>(), limit: 16 },
+};
+// After a message is deleted or edited the corpus is rebuilt at most once every 10 minutes, not immediately
+const STALE_REBUILD_MS = 10 * 60 * 1000;
+const pending = new Map<string, Promise<CacheEntry>>();
+const invalidatedAt = new Map<string, number>();
+let queue: Promise<unknown> = Promise.resolve();
 
-	const canAppend = entry && entry.model.stateSize === stateSize && entry.endsWithNewline && stat.size >= entry.size;
+// Under tsx (pnpm dev) the .ts sources run, after a build it's .js
+const workerUrl = new URL(`./corpus-worker${import.meta.url.endsWith(".ts") ? ".ts" : ".js"}`, import.meta.url);
 
-	if (entry && canAppend) {
-		if (stat.size > entry.size) {
-			const fd = fs.openSync(file, "r");
-			try {
-				const buf = Buffer.alloc(stat.size - entry.size);
-				fs.readSync(fd, buf, 0, buf.length, entry.size);
-				entry.model.addText(decode(buf));
-				entry.endsWithNewline = buf[buf.length - 1] === 0x0a;
-			} finally {
-				fs.closeSync(fd);
-			}
-			entry.size = stat.size;
-			entry.mtimeMs = stat.mtimeMs;
-		}
-	} else {
-		const buf = fs.readFileSync(file);
-		const model = new TextModel(stateSize);
-		model.addText(decode(buf));
-		entry = { model, size: buf.length, mtimeMs: stat.mtimeMs, endsWithNewline: buf[buf.length - 1] === 0x0a };
+function* contents(rows: Iterable<{ id: number; content: string }>, state: { lastId: number }) {
+	for (const row of rows) {
+		state.lastId = row.id;
+		yield row.content;
 	}
+}
 
-	cache.delete(file);
-	cache.set(file, entry);
-	while (cache.size > CACHE_LIMIT) cache.delete(cache.keys().next().value!);
+// Big corpora are built in a worker so the bot doesn't freeze for seconds. Builds run one at a time:
+// each holds the whole corpus in memory, two huge ones at once may not fit.
+function buildInWorker(guildId: string, scope: string): Promise<Built> {
+	const run = () =>
+		new Promise<Built>((resolve, reject) => {
+			const worker = new Worker(workerUrl, { workerData: { dbPath: DB_PATH, guildId, scope } });
+			worker.once("message", ({ state, lastId }: { state: CorpusState; lastId: number }) =>
+				resolve({ corpus: Corpus.fromState(state), lastId }),
+			);
+			worker.once("error", reject);
+			worker.once("exit", code => code !== 0 && reject(new Error(`corpus worker exited with code ${code}`)));
+		});
+	const job = queue.then(run, run);
+	queue = job.catch(() => {});
+	return job;
+}
 
-	return entry.model;
+function buildHere(guildId: string, scope: string, authorId: string): Built {
+	const state = { lastId: 0 };
+	const corpus = Corpus.fromChunks(contents(rowsSince(guildId, scope, 0, authorId), state));
+	return { corpus, lastId: state.lastId };
+}
+
+function remember(cache: (typeof caches)["scope"], key: string, entry: CacheEntry) {
+	cache.map.delete(key);
+	cache.map.set(key, entry);
+	while (cache.map.size > cache.limit) cache.map.delete(cache.map.keys().next().value!);
+}
+
+function prefixOf(guildId: string, scope: string) {
+	return `${guildId}|${scope}|`;
+}
+
+function build(key: string, guildId: string, scope: string, authorId?: string): Promise<CacheEntry> {
+	let promise = pending.get(key);
+	if (promise) return promise;
+
+	const startedAt = Date.now();
+	promise = (async () => {
+		const built = authorId ? buildHere(guildId, scope, authorId) : await buildInWorker(guildId, scope);
+		// If something was deleted from the scope (forget) during the build, mark the corpus stale right away
+		const raced = (invalidatedAt.get(prefixOf(guildId, scope)) ?? 0) >= startedAt;
+		const entry: CacheEntry = { ...built, staleSince: raced ? 0 : null };
+		remember(authorId ? caches.author : caches.scope, key, entry);
+		return entry;
+	})().finally(() => pending.delete(key));
+	pending.set(key, promise);
+	return promise;
+}
+
+// A corpus is built once, after that only new messages are read from the database.
+// With authorId only this person's messages from the same scope are used.
+export async function getCorpus(guildId: string, scope: string, authorId?: string): Promise<Corpus> {
+	const cache = authorId ? caches.author : caches.scope;
+	const key = `${prefixOf(guildId, scope)}${authorId ?? ""}`;
+	let entry = cache.map.get(key);
+
+	// A stale corpus keeps answering while a new one is built in the background
+	if (entry && entry.staleSince !== null && Date.now() - entry.staleSince > STALE_REBUILD_MS)
+		build(key, guildId, scope, authorId).catch(e => logError(`failed to rebuild corpus ${key}`, e));
+	entry ??= await build(key, guildId, scope, authorId);
+
+	const fresh = { lastId: entry.lastId };
+	for (const content of contents(rowsSince(guildId, scope, entry.lastId, authorId), fresh))
+		entry.corpus.addText(content);
+	entry.lastId = fresh.lastId;
+
+	if (cache.map.get(key) === entry) remember(cache, key, entry);
+	return entry.corpus;
+}
+
+export function invalidateCorpus(guildId: string, scope: string, immediate = false) {
+	const prefix = prefixOf(guildId, scope);
+	if (immediate) invalidatedAt.set(prefix, Date.now());
+	for (const { map } of Object.values(caches))
+		for (const [key, entry] of map) {
+			if (!key.startsWith(prefix)) continue;
+			if (immediate) map.delete(key);
+			else entry.staleSince ??= Date.now();
+		}
+}
+
+// Warm-up on startup: the biggest corpora are built in advance so the first reply doesn't wait for a build
+export async function warmUp(scopes: { guildId: string; scope: string }[]) {
+	for (const { guildId, scope } of scopes.slice(0, caches.scope.limit))
+		await getCorpus(guildId, scope).catch(e => logError(`failed to warm up corpus ${guildId}|${scope}`, e));
 }
